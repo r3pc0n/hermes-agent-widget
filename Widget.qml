@@ -936,34 +936,32 @@ Panel {
           }
         }
       }
+    }
 
-      // Clickable gear overlay — outside the Flickable so QML's scroll-interception
-      // doesn't steal mouse events. Sits at the top-right of the panel, aligned
-      // with the hero's trailing area. A visual-only placeholder in the
-      // trailingControl reserves the space inside the hero.
-      Item {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.topMargin: Style.space(8)
-        anchors.rightMargin: Style.space(12)
-        width: Style.font.title + Style.space(8)
-        height: Style.font.title + Style.space(8)
-        opacity: 0.6
-        z: 10
+    // Clickable gear overlay — outside PanelKeyCatcher so no input intercept.
+    // The hero's trailingControl has an empty placeholder to reserve space.
+    Item {
+      anchors.top: parent.top
+      anchors.right: parent.right
+      anchors.topMargin: Style.space(8)
+      anchors.rightMargin: Style.space(12)
+      width: Style.font.title + Style.space(8)
+      height: Style.font.title + Style.space(8)
+      opacity: 0.6
+      z: 20
 
-        Text {
-          anchors.centerIn: parent
-          text: "⚙"
-          color: root.foreground
-          font.pixelSize: Style.font.title
-          font.bold: true
-        }
+      Text {
+        anchors.centerIn: parent
+        text: "⚙"
+        color: root.foreground
+        font.pixelSize: Style.font.title
+        font.bold: true
+      }
 
-        MouseArea {
-          anchors.fill: parent
-          hoverEnabled: true
-          onClicked: root.settingsVisible = !root.settingsVisible
-        }
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        onClicked: root.settingsVisible = !root.settingsVisible
       }
     }
   }
