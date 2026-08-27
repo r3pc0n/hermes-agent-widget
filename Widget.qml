@@ -478,26 +478,45 @@ Panel {
             }
 
             trailingControl: Component {
+              // NOTE: the gear is rendered here for visual positioning, but
+              // the actual clickable button lives OUTSIDE the Flickable as a
+              // PopupCard overlay (Flickable eats MouseArea events). This
+              // component is kept as a visual-only placeholder so the hero
+              // reserves the space; the overlay handles the interaction.
               Item {
                 width: Style.font.title
                 height: Style.font.title
-                opacity: 0.6
-
-                Text {
-                  anchors.centerIn: parent
-                  text: "⚙"
-                  color: root.foreground
-                  font.pixelSize: Style.font.title
-                  font.bold: true
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  onClicked: root.settingsVisible = !root.settingsVisible
-                }
               }
             }
+          }
+
+          // Clickable gear overlay — outside the Flickable so Flickable
+          // doesn't steal mouse events. Positioned over the hero's trailing
+          // area (matching the visual placeholder above).
+          Item {
+            anchors.top: panel.top
+            anchors.right: panel.right
+            anchors.topMargin: Style.space(0)
+            anchors.rightMargin: Style.space(4)
+            width: Style.font.title + Style.space(8)
+            height: Style.font.title + Style.space(8)
+            opacity: 0.6
+            z: 10  // above the Flickable
+
+            Text {
+              anchors.centerIn: parent
+              text: "⚙"
+              color: root.foreground
+              font.pixelSize: Style.font.title
+              font.bold: true
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              onClicked: root.settingsVisible = !root.settingsVisible
+            }
+          }
           }
 
           // ---------- Status / auth help ----------
@@ -946,6 +965,35 @@ Panel {
           }
         }
       }
+
+      // Clickable gear overlay — outside the Flickable so QML's scroll-interception
+      // doesn't steal mouse events. Sits at the top-right of the panel, aligned
+      // with the hero's trailing area. A visual-only placeholder in the
+      // trailingControl reserves the space inside the hero.
+      Item {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: Style.space(8)
+        anchors.rightMargin: Style.space(12)
+        width: Style.font.title + Style.space(8)
+        height: Style.font.title + Style.space(8)
+        opacity: 0.6
+        z: 10
+
+        Text {
+          anchors.centerIn: parent
+          text: "⚙"
+          color: root.foreground
+          font.pixelSize: Style.font.title
+          font.bold: true
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          hoverEnabled: true
+          onClicked: root.settingsVisible = !root.settingsVisible
+        }
+      }
     }
   }
 
@@ -1269,4 +1317,3 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
     }
   }
-}
