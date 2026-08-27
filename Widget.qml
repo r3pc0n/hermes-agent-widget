@@ -360,6 +360,22 @@ Panel {
 
   onExpandedProviderChanged: root.clampCursor()
 
+  onSettingsVisibleChanged: {
+    if (root.settingsVisible) {
+      scrollSettings.start()
+    }
+  }
+
+  Timer {
+    id: scrollSettings
+    interval: 50
+    onTriggered: {
+      var targetY = settingsHeader.y
+      var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+      panelFlick.contentY = root.clamp(targetY, 0, maxY)
+    }
+  }
+
   Component.onCompleted: root.refreshNow()
   onOpenedChanged: if (root.opened) root.refreshNow()
 
@@ -490,10 +506,23 @@ Panel {
                   font.bold: true
                 }
 
-                // DEBUG: using TapHandler instead of MouseArea to bypass
-                // Flickable/PanelKeyCatcher event interception
+                // TapHandler bypasses Flickable/PanelKeyCatcher event interception
                 TapHandler {
-                  onTapped: root.settingsVisible = !root.settingsVisible
+                  onTapped: {
+                    root.settingsVisible = !root.settingsVisible
+                    // Visual feedback: brief accent pulse
+                    gearAccent.start()
+                  }
+                }
+
+                // Brief accent pulse to confirm the click
+                PropertyAnimation {
+                  id: gearAccent
+                  target: parent
+                  property: "opacity"
+                  to: 1.0
+                  duration: 100
+                  onFinished: { parent.opacity = 0.6 }
                 }
               }
             }
@@ -809,6 +838,7 @@ Panel {
           PanelSeparator { foreground: root.foreground }
 
           Item {
+            id: settingsHeader
             width: parent.width
             implicitHeight: root.settingsVisible ? settingsColumn.implicitHeight : Style.space(28)
 
