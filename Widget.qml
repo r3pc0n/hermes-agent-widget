@@ -663,10 +663,6 @@ Panel {
                 border.color: root.alpha(root.foreground, root.localMode() ? 0.10 : 0.30)
                 radius: Style.cornerRadius
 
-                TapHandler {
-                  onTapped: bridgeUrlInput.forceActiveFocus()
-                }
-
                 TextInput {
                   id: bridgeUrlInput
                   anchors.fill: parent
@@ -679,9 +675,18 @@ Panel {
                   readOnly: root.localMode()
                   selectByMouse: true
                   cursorVisible: !root.localMode()
+                  activeFocusOnTab: true
                   verticalAlignment: TextInput.AlignVCenter
                   onEditingFinished: {
                     if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
+                  }
+                  TapHandler {
+                    onTapped: {
+                      if (!root.localMode()) {
+                        parent.forceActiveFocus()
+                        parent.cursorVisible = true
+                      }
+                    }
                   }
                 }
               }
