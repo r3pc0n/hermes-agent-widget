@@ -413,7 +413,11 @@ Panel {
 
     PanelKeyCatcher {
       id: keyCatcher
-      anchors.fill: parent
+      anchors.top: parent.top
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.rightMargin: Style.space(40)  // leave the gear area uncovered
       visible: true
 
       onMoveRequested: function(dx, dy) {
