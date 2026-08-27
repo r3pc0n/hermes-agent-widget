@@ -558,8 +558,6 @@ Panel {
                 TapHandler {
                   onTapped: {
                     root.settingsVisible = !root.settingsVisible
-                    // When opening settings, close the main panel
-                    if (root.settingsVisible) root.close()
                     // Visual feedback: brief accent pulse
                     gearAccent.start()
                   }
@@ -940,32 +938,14 @@ Panel {
       width: parent.width
       spacing: Style.space(12)
 
-        // Header with back button
-        Item {
+        // A small accent rule visually ties this keyboard surface to the
+        // gear that opened it without turning the settings into a sub-page.
+        Rectangle {
           width: parent.width
-          implicitHeight: Math.max(backBtn.implicitHeight, settingsTitle.implicitHeight) + Style.space(8)
-
-          Text {
-            id: backBtn
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(12)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "← Back"
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            TapHandler { onTapped: root.settingsVisible = false }
-          }
-
-          Text {
-            id: settingsTitle
-            anchors.centerIn: parent
-            text: "SETTINGS"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.bold: true
-          }
+          height: Math.max(1, Style.space(2))
+          radius: height / 2
+          color: root.accent
+          opacity: 0.75
         }
 
         PanelSeparator { foreground: root.foreground }
