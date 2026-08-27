@@ -490,35 +490,6 @@ Panel {
             }
           }
 
-          // Clickable gear overlay — outside the Flickable so Flickable
-          // doesn't steal mouse events. Positioned over the hero's trailing
-          // area (matching the visual placeholder above).
-          Item {
-            anchors.top: panel.top
-            anchors.right: panel.right
-            anchors.topMargin: Style.space(0)
-            anchors.rightMargin: Style.space(4)
-            width: Style.font.title + Style.space(8)
-            height: Style.font.title + Style.space(8)
-            opacity: 0.6
-            z: 10  // above the Flickable
-
-            Text {
-              anchors.centerIn: parent
-              text: "⚙"
-              color: root.foreground
-              font.pixelSize: Style.font.title
-              font.bold: true
-            }
-
-            MouseArea {
-              anchors.fill: parent
-              hoverEnabled: true
-              onClicked: root.settingsVisible = !root.settingsVisible
-            }
-          }
-          }
-
           // ---------- Status / auth help ----------
           Rectangle {
             visible: root.statusText() !== ""
