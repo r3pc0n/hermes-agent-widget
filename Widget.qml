@@ -620,9 +620,8 @@ Panel {
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
-                MouseArea {
-                  anchors.fill: parent
-                  onClicked: {
+                TapHandler {
+                  onTapped: {
                     root.saveSettings({ connectionMode: "local", bridgeUrl: "http://localhost:8643" })
                     bridgeUrlInput.text = "http://localhost:8643"
                   }
@@ -634,9 +633,8 @@ Panel {
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
-                MouseArea {
-                  anchors.fill: parent
-                  onClicked: {
+                TapHandler {
+                  onTapped: {
                     var url = root.localMode() ? "http://192.168.2.41:8643" : root.bridgeUrl()
                     root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
                     bridgeUrlInput.text = url
@@ -665,6 +663,10 @@ Panel {
                 border.color: root.alpha(root.foreground, root.localMode() ? 0.10 : 0.30)
                 radius: Style.cornerRadius
 
+                TapHandler {
+                  onTapped: bridgeUrlInput.forceActiveFocus()
+                }
+
                 TextInput {
                   id: bridgeUrlInput
                   anchors.fill: parent
@@ -676,6 +678,7 @@ Panel {
                   font.pixelSize: Style.font.caption
                   readOnly: root.localMode()
                   selectByMouse: true
+                  cursorVisible: !root.localMode()
                   verticalAlignment: TextInput.AlignVCenter
                   onEditingFinished: {
                     if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
@@ -716,9 +719,8 @@ Panel {
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
-                MouseArea {
-                  anchors.fill: parent
-                  onClicked: root.saveSetting(modelData.key, !root.settingBool(modelData.key, true))
+                TapHandler {
+                  onTapped: root.saveSetting(modelData.key, !root.settingBool(modelData.key, true))
                 }
               }
             }
