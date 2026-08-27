@@ -1288,3 +1288,4 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
     }
   }
+}
