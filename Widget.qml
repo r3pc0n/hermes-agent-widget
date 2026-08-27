@@ -36,6 +36,7 @@ Panel {
   // Accordion state: which provider group is expanded ("" = none).
   property string expandedProvider: ""
   property string prevModel: ""
+  property bool settingsVisible: false
 
   readonly property var api: stats && stats.api ? stats.api : null
   readonly property var usage: stats && stats.usage ? stats.usage : null
@@ -475,6 +476,28 @@ Panel {
                 }
               }
             }
+
+            trailingControl: Component {
+              Item {
+                width: Style.font.title
+                height: Style.font.title
+                opacity: 0.6
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "⚙"
+                  color: root.foreground
+                  font.pixelSize: Style.font.title
+                  font.bold: true
+                }
+
+                MouseArea {
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  onClicked: root.settingsVisible = !root.settingsVisible
+                }
+              }
+            }
           }
 
           // ---------- Status / auth help ----------
@@ -781,6 +804,133 @@ Panel {
               width: contentColumn.width
               row: modelData
             }
+          }
+
+          // ---------- Settings ----------
+          PanelSeparator { foreground: root.foreground }
+
+          Item {
+            width: parent.width
+            implicitHeight: root.settingsVisible ? settingsColumn.implicitHeight : Style.space(28)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Style.cornerRadius
+              color: root.alpha(root.foreground, root.settingsVisible ? 0.06 : 0.03)
+
+              Row {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+
+                Text {
+                  text: root.settingsVisible ? "▾" : "▸"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+
+                Text {
+                  text: "SETTINGS"
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                onClicked: root.settingsVisible = !root.settingsVisible
+              }
+            }
+          }
+
+          Column {
+            id: settingsColumn
+            visible: root.settingsVisible
+            width: parent.width
+            spacing: Style.space(8)
+            // Placeholder for future settings controls.
+
+            PanelSectionHeader {
+              width: parent.width
+              text: "CONNECTION"
+              foreground: root.dim
+              fontFamily: root.fontFamily
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "Mode: Remote (" + (root.hermes && root.hermes.provider ? root.hermes.provider : "?") + ")"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "Bridge URL: http://192.168.2.41:8643"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "Status: Connected · " + root.heroMeta()
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            PanelSectionHeader {
+              width: parent.width
+              text: "VISIBILITY"
+              foreground: root.dim
+              fontFamily: root.fontFamily
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "Section toggles coming soon"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            PanelSectionHeader {
+              width: parent.width
+              text: "ABOUT"
+              foreground: root.dim
+              fontFamily: root.fontFamily
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "hermes-agent-widget v0.1"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            Text {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(8)
+              text: "github.com/r3pc0n/hermes-agent-widget"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            Item { width: 1; height: Style.space(4) }
           }
 
           // ---------- Footer ----------
