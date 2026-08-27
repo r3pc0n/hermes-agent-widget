@@ -490,11 +490,10 @@ Panel {
                   font.bold: true
                 }
 
-                MouseArea {
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  preventStealing: true
-                  onClicked: root.settingsVisible = !root.settingsVisible
+                // DEBUG: using TapHandler instead of MouseArea to bypass
+                // Flickable/PanelKeyCatcher event interception
+                TapHandler {
+                  onTapped: root.settingsVisible = !root.settingsVisible
                 }
               }
             }
