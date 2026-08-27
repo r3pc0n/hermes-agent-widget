@@ -37,6 +37,7 @@ Panel {
   property string expandedProvider: ""
   property string prevModel: ""
   property bool settingsVisible: false
+  property var uiSettings: ({})
 
   readonly property var api: stats && stats.api ? stats.api : null
   readonly property var usage: stats && stats.usage ? stats.usage : null
@@ -71,6 +72,55 @@ Panel {
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
+
+  // Inline settings are injected from this plugin's shell.json entry by the
+  // bar. Keep defaults here so older installs gain the controls safely.
+  function settingValue(name, fallback) {
+    var value = root.uiSettings && root.uiSettings[name] !== undefined
+      ? root.uiSettings[name]
+      : (root.settings ? root.settings[name] : undefined)
+    return value === undefined || value === null ? fallback : value
+  }
+
+  function settingBool(name, fallback) {
+    var value = settingValue(name, fallback)
+    return value === true || value === 1 || String(value).toLowerCase() === "true"
+  }
+
+  function saveSettings(changes) {
+    if (!bar || !bar.shell || typeof bar.shell.updateEntryInline !== "function") {
+      console.warn("echo.model: shell settings API unavailable")
+      return
+    }
+    var next = ({})
+    var base = root.uiSettings || root.settings || ({})
+    for (var existing in base) if (existing !== "id") next[existing] = base[existing]
+    for (var change in changes) next[change] = changes[change]
+    root.uiSettings = next
+
+    var entry = ({ id: moduleName })
+    base = next
+    for (var key in base) if (key !== "id") entry[key] = base[key]
+    for (var change in changes) entry[change] = changes[change]
+    bar.shell.updateEntryInline(moduleName, entry)
+  }
+
+  function saveSetting(name, value) {
+    var changes = ({})
+    changes[name] = value
+    saveSettings(changes)
+  }
+
+  function bridgeUrl() {
+    return String(settingValue("bridgeUrl", "http://192.168.2.41:8643"))
+  }
+
+  function localMode() { return String(settingValue("connectionMode", "remote")) === "local" }
+  function showBalance() { return settingBool("balanceVisible", true) }
+  function showDayChart() { return settingBool("tokensByDayVisible", true) }
+  function showModelUsage() { return settingBool("modelUsageVisible", true) }
+  function showProviderAccordion() { return settingBool("providerAccordionVisible", true) }
+  function showRecentSessions() { return settingBool("recentSessionsVisible", true) }
 
   function val(o, k, fallback) {
     return o && o[k] !== undefined && o[k] !== null ? o[k] : fallback
@@ -361,7 +411,15 @@ Panel {
   onExpandedProviderChanged: root.clampCursor()
 
   Component.onCompleted: root.refreshNow()
-  onOpenedChanged: if (root.opened) root.refreshNow()
+  onOpenedChanged: {
+    if (root.opened) {
+      var loaded = ({})
+      var source = root.settings || ({})
+      for (var key in source) if (key !== "id") loaded[key] = source[key]
+      root.uiSettings = loaded
+      root.refreshNow()
+    }
+  }
 
   IpcHandler {
     target: root.ipcTarget
@@ -540,12 +598,11 @@ Panel {
           // ---------- Settings ----------
           PanelSeparator { visible: root.settingsVisible; foreground: root.foreground }
 
-          Column {
+            Column {
             id: settingsColumn
             visible: root.settingsVisible
             width: parent.width
             spacing: Style.space(8)
-            // Placeholder for future settings controls.
 
             PanelSectionHeader {
               width: parent.width
@@ -554,22 +611,77 @@ Panel {
               fontFamily: root.fontFamily
             }
 
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "Mode: Remote (" + (root.hermes && root.hermes.provider ? root.hermes.provider : "?") + ")"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
+            Row {
+              width: parent.width
+              spacing: Style.space(12)
+
+              Text {
+                text: (root.localMode() ? "●" : "○") + " Local"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                MouseArea {
+                  anchors.fill: parent
+                  onClicked: {
+                    root.saveSettings({ connectionMode: "local", bridgeUrl: "http://localhost:8643" })
+                    bridgeUrlInput.text = "http://localhost:8643"
+                  }
+                }
+              }
+
+              Text {
+                text: (!root.localMode() ? "●" : "○") + " Remote"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                MouseArea {
+                  anchors.fill: parent
+                  onClicked: {
+                    var url = root.localMode() ? "http://192.168.2.41:8643" : root.bridgeUrl()
+                    root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
+                    bridgeUrlInput.text = url
+                  }
+                }
+              }
             }
 
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "Bridge URL: http://192.168.2.41:8643"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Text {
+                text: "Bridge URL"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                verticalAlignment: Text.AlignVCenter
+              }
+
+              Rectangle {
+                width: parent.width - Style.space(84)
+                height: Style.space(28)
+                color: root.alpha(root.foreground, root.localMode() ? 0.04 : 0.08)
+                border.width: 1
+                border.color: root.alpha(root.foreground, root.localMode() ? 0.10 : 0.30)
+                radius: Style.cornerRadius
+
+                TextInput {
+                  id: bridgeUrlInput
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(8)
+                  anchors.rightMargin: Style.space(8)
+                  text: root.bridgeUrl()
+                  color: root.localMode() ? root.dim : root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  readOnly: root.localMode()
+                  selectByMouse: true
+                  verticalAlignment: TextInput.AlignVCenter
+                  onEditingFinished: {
+                    if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
+                  }
+                }
+              }
             }
 
             Text {
@@ -588,13 +700,27 @@ Panel {
               fontFamily: root.fontFamily
             }
 
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "Section toggles coming soon"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
+            Repeater {
+              model: [
+                { key: "balanceVisible", label: "Balance card" },
+                { key: "tokensByDayVisible", label: "Tokens by day chart" },
+                { key: "modelUsageVisible", label: "Model usage (30d)" },
+                { key: "providerAccordionVisible", label: "Provider accordion" },
+                { key: "recentSessionsVisible", label: "Recent sessions" }
+              ]
+              delegate: Text {
+                required property var modelData
+                width: parent.width
+                leftPadding: Style.space(8)
+                text: root.settingBool(modelData.key, true) ? "☑ " + modelData.label : "☐ " + modelData.label
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                MouseArea {
+                  anchors.fill: parent
+                  onClicked: root.saveSetting(modelData.key, !root.settingBool(modelData.key, true))
+                }
+              }
             }
 
             PanelSectionHeader {
@@ -607,7 +733,7 @@ Panel {
             Text {
               anchors.left: parent.left
               anchors.leftMargin: Style.space(8)
-              text: "hermes-agent-widget v0.1"
+              text: "hermes-agent-widget v0.2"
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -626,11 +752,11 @@ Panel {
           }
 
           // ---------- Balance ----------
-          PanelSeparator { foreground: root.foreground }
+          PanelSeparator { visible: root.showBalance(); foreground: root.foreground }
 
           Column {
             id: balanceColumn
-            visible: root.api !== null && root.api.ok
+            visible: root.showBalance() && root.api !== null && root.api.ok
             width: parent.width
             spacing: Style.space(8)
 
@@ -738,8 +864,9 @@ Panel {
           }
 
           // ---------- Tokens by day ----------
-          PanelSeparator { foreground: root.foreground }
+          PanelSeparator { visible: root.showDayChart(); foreground: root.foreground }
           PanelSectionHeader {
+            visible: root.showDayChart()
             width: parent.width
             text: "TOKENS BY DAY · ESTIMATED"
             foreground: root.foreground
@@ -749,6 +876,8 @@ Panel {
           Repeater {
             model: root.usage && root.usage.byDay ? root.usage.byDay : []
             DayRow {
+              visible: root.showDayChart()
+              height: root.showDayChart() ? implicitHeight : 0
               required property var modelData
               width: contentColumn.width
               day: modelData
@@ -757,8 +886,9 @@ Panel {
           }
 
           // ---------- Tokens by model (30d) ----------
-          PanelSeparator { foreground: root.foreground }
+          PanelSeparator { visible: root.showModelUsage(); foreground: root.foreground }
           PanelSectionHeader {
+            visible: root.showModelUsage()
             width: parent.width
             text: "MODELS · 30 DAYS · ESTIMATED"
             foreground: root.foreground
@@ -768,6 +898,8 @@ Panel {
           Repeater {
             model: root.usage && root.usage.byModel ? root.usage.byModel : []
             ModelUsageRow {
+              visible: root.showModelUsage()
+              height: root.showModelUsage() ? implicitHeight : 0
               required property var modelData
               width: contentColumn.width
               row: modelData
@@ -775,23 +907,26 @@ Panel {
           }
 
           // ---------- Model switcher ----------
-          PanelSeparator { foreground: root.foreground }
+          PanelSeparator { visible: root.showProviderAccordion(); foreground: root.foreground }
           PanelSectionHeader {
+            visible: root.showProviderAccordion()
             width: parent.width
             text: "SWITCH MODEL"
             foreground: root.foreground
             fontFamily: root.fontFamily
           }
 
-          Repeater {
-            id: modelList
-            model: root.modelRows
+            Repeater {
+              id: modelList
+              model: root.modelRows
 
             delegate: Item {
               required property var modelData
               required property int index
               width: contentColumn.width
-              height: modelData.kind === "header" ? Style.space(28) : Style.space(30)
+              visible: root.showProviderAccordion()
+              height: root.showProviderAccordion()
+                ? (modelData.kind === "header" ? Style.space(28) : Style.space(30)) : 0
 
               // Provider group header — click/Enter toggles the accordion.
               Rectangle {
@@ -866,7 +1001,7 @@ Panel {
 
           Text {
             width: parent.width
-            visible: root.applyingModel !== ""
+            visible: root.showProviderAccordion() && root.applyingModel !== ""
             text: "Switching to " + root.shortModel(root.applyingModel) + "…"
             color: root.dim
             font.family: root.fontFamily
@@ -876,6 +1011,7 @@ Panel {
 
           Text {
             width: parent.width
+            visible: root.showProviderAccordion()
             text: "Switches Echo's model through the usage bridge.\nmodel.default — new sessions use it; open sessions keep theirs."
             color: root.dim
             font.family: root.fontFamily
@@ -886,11 +1022,11 @@ Panel {
 
           // ---------- Recent sessions ----------
           PanelSeparator {
-            visible: root.lastSessions.length > 0
+            visible: root.showRecentSessions() && root.lastSessions.length > 0
             foreground: root.foreground
           }
           PanelSectionHeader {
-            visible: root.lastSessions.length > 0
+            visible: root.showRecentSessions() && root.lastSessions.length > 0
             width: parent.width
             text: "RECENT SESSIONS · ALL PROFILES"
             foreground: root.foreground
@@ -900,6 +1036,8 @@ Panel {
           Repeater {
             model: root.lastSessions
             SessionRow {
+              visible: root.showRecentSessions()
+              height: root.showRecentSessions() ? implicitHeight : 0
               required property var modelData
               width: contentColumn.width
               row: modelData

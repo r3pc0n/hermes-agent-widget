@@ -25,7 +25,14 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "refreshIntervalSec": 300
+      "refreshIntervalSec": 300,
+      "connectionMode": "remote",
+      "bridgeUrl": "http://192.168.2.41:8643",
+      "balanceVisible": true,
+      "tokensByDayVisible": true,
+      "modelUsageVisible": true,
+      "providerAccordionVisible": true,
+      "recentSessionsVisible": true
     },
     "schema": [
       {
