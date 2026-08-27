@@ -433,7 +433,10 @@ Panel {
     function close(): void { root.close() }
     function show(): void { root.open() }
     function hide(): void { root.close() }
-    function toggle(): void { root.toggle() }
+    function toggle(): void {
+      if (root.settingsVisible) root.settingsVisible = false
+      else root.toggle()
+    }
     function refresh(): string { root.refreshNow(); return "ok" }
   }
 
@@ -456,6 +459,7 @@ Panel {
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) { if (root.bar) root.bar.run("xdg-open https://platform.deepseek.com/usage") }
       else if (buttonCode === Qt.MiddleButton) root.refreshNow()
+      else if (root.settingsVisible) root.settingsVisible = false
       else root.toggle()
     }
   }
@@ -938,14 +942,34 @@ Panel {
       width: parent.width
       spacing: Style.space(12)
 
-        // A small accent rule visually ties this keyboard surface to the
-        // gear that opened it without turning the settings into a sub-page.
-        Rectangle {
+        // A compact close affordance and accent rule visually tie this
+        // keyboard surface to the gear without turning settings into a
+        // separate navigation page.
+        Item {
           width: parent.width
-          height: Math.max(1, Style.space(2))
-          radius: height / 2
-          color: root.accent
-          opacity: 0.75
+          height: Style.space(20)
+
+          Text {
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(12)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "✕"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+
+            TapHandler { onTapped: root.settingsVisible = false }
+          }
+
+          Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: Math.max(1, Style.space(2))
+            radius: height / 2
+            color: root.accent
+            opacity: 0.75
+          }
         }
 
         PanelSeparator { foreground: root.foreground }
