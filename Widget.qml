@@ -360,24 +360,6 @@ Panel {
 
   onExpandedProviderChanged: root.clampCursor()
 
-  onSettingsVisibleChanged: {
-    if (root.settingsVisible) {
-      scrollSettings.start()
-    }
-  }
-
-  Timer {
-    id: scrollSettings
-    interval: 50
-    onTriggered: {
-      var targetY = settingsHeader.y
-      if (targetY > 0) {
-        var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
-        panelFlick.contentY = root.clamp(targetY, 0, maxY)
-      }
-    }
-  }
-
   Component.onCompleted: root.refreshNow()
   onOpenedChanged: if (root.opened) root.refreshNow()
 
@@ -557,46 +539,6 @@ Panel {
 
           // ---------- Settings ----------
           PanelSeparator { foreground: root.foreground }
-
-          Item {
-            id: settingsHeader
-            width: parent.width
-            implicitHeight: root.settingsVisible ? settingsColumn.implicitHeight : Style.space(28)
-
-            Rectangle {
-              anchors.fill: parent
-              radius: Style.cornerRadius
-              color: root.alpha(root.foreground, root.settingsVisible ? 0.06 : 0.03)
-
-              Row {
-                anchors.left: parent.left
-                anchors.leftMargin: Style.space(8)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(6)
-
-                Text {
-                  text: root.settingsVisible ? "▾" : "▸"
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.bodySmall
-                  font.bold: true
-                }
-
-                Text {
-                  text: "SETTINGS"
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                onClicked: root.settingsVisible = !root.settingsVisible
-              }
-            }
-          }
 
           Column {
             id: settingsColumn
