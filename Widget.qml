@@ -446,11 +446,11 @@ Panel {
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
         Column {
           id: contentColumn
-          width: panelFlick.width
+          width: panelFlick.width - panelFlick.width / 48  // shy right-margin for the gear + header icons
           spacing: Style.space(12)
 
           PanelHero {
