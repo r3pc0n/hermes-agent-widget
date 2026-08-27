@@ -918,18 +918,18 @@ Panel {
     }
   }
 
-  // Settings popup — no PanelKeyCatcher, so TextInput and keyboard work natively
-  PopupCard {
+  // Settings use KeyboardPanel rather than PopupCard: xdg-popup surfaces are
+  // intentionally non-focusable, so a TextInput inside PopupCard can never
+  // receive compositor keyboard focus. KeyboardPanel provides the normal
+  // layer-shell focus prime while keeping this editor separate from the
+  // data panel's PanelKeyCatcher.
+  KeyboardPanel {
     id: settingsPanel
     anchorItem: button
     owner: root
     bar: root.bar
     open: root.settingsVisible
-    // PopupCard is an xdg-popup and is non-focusable by default.  That is
-    // fine for display-only cards, but it prevents a child TextInput from
-    // ever receiving keyboard focus (and therefore makes the URL field look
-    // clickable while silently dropping all key events).
-    focusable: true
+    focusTarget: bridgeUrlInput
     contentWidth: settingsPanel.fittedContentWidth(Style.space(392))
     contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(500))
 
