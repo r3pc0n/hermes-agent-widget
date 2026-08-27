@@ -928,21 +928,12 @@ Panel {
     contentWidth: settingsPanel.fittedContentWidth(Style.space(392))
     contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(500))
 
-    Flickable {
-      id: settingsFlick
-      anchors.fill: parent
-      contentWidth: width
-      contentHeight: settingsPopupColumn.implicitHeight
-      clip: true
-      boundsBehavior: Flickable.StopAtBounds
-      flickableDirection: Flickable.VerticalFlick
-      interactive: contentHeight > height
-      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
-
-      Column {
-        id: settingsPopupColumn
-        width: parent.width
-        spacing: Style.space(12)
+    // No Flickable — settings content fits. Flickable intercepts press events
+    // which prevents TextInput from receiving clicks for cursor positioning.
+    Column {
+      id: settingsPopupColumn
+      width: parent.width
+      spacing: Style.space(12)
 
         // Header with back button
         Item {
@@ -1134,7 +1125,6 @@ Panel {
 
         Item { width: 1; height: Style.space(4) }
       }
-    }
   }
 
   // ------------------------------------------------------------ components
