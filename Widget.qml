@@ -538,7 +538,7 @@ Panel {
           }
 
           // ---------- Settings ----------
-          PanelSeparator { foreground: root.foreground }
+          PanelSeparator { visible: root.settingsVisible; foreground: root.foreground }
 
           Column {
             id: settingsColumn
@@ -626,7 +626,7 @@ Panel {
           }
 
           // ---------- Balance ----------
-          PanelSeparator { visible: root.api !== null && root.api.ok; foreground: root.foreground }
+          PanelSeparator { foreground: root.foreground }
 
           Column {
             id: balanceColumn
