@@ -413,11 +413,7 @@ Panel {
 
     PanelKeyCatcher {
       id: keyCatcher
-      anchors.top: parent.top
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.bottom: parent.bottom
-      anchors.rightMargin: Style.space(40)  // leave the gear area uncovered
+      anchors.fill: parent
       visible: true
 
       onMoveRequested: function(dx, dy) {
@@ -454,7 +450,7 @@ Panel {
 
         Column {
           id: contentColumn
-          width: panelFlick.width - panelFlick.width / 48  // shy right-margin for the gear + header icons
+          width: panelFlick.width
           spacing: Style.space(12)
 
           PanelHero {
@@ -482,14 +478,24 @@ Panel {
             }
 
             trailingControl: Component {
-              // NOTE: the gear is rendered here for visual positioning, but
-              // the actual clickable button lives OUTSIDE the Flickable as a
-              // PopupCard overlay (Flickable eats MouseArea events). This
-              // component is kept as a visual-only placeholder so the hero
-              // reserves the space; the overlay handles the interaction.
               Item {
-                width: Style.font.title
-                height: Style.font.title
+                width: Style.font.title + Style.space(8)
+                height: Style.font.title + Style.space(8)
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "⚙"
+                  color: root.foreground
+                  font.pixelSize: Style.font.title
+                  font.bold: true
+                }
+
+                MouseArea {
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  preventStealing: true
+                  onClicked: root.settingsVisible = !root.settingsVisible
+                }
               }
             }
           }
@@ -939,33 +945,6 @@ Panel {
             horizontalAlignment: Text.AlignHCenter
           }
         }
-      }
-    }
-
-    // Clickable gear overlay — outside PanelKeyCatcher so no input intercept.
-    // The hero's trailingControl has an empty placeholder to reserve space.
-    Item {
-      anchors.top: parent.top
-      anchors.right: parent.right
-      anchors.topMargin: Style.space(8)
-      anchors.rightMargin: Style.space(12)
-      width: Style.font.title + Style.space(8)
-      height: Style.font.title + Style.space(8)
-      opacity: 0.6
-      z: 20
-
-      Text {
-        anchors.centerIn: parent
-        text: "⚙"
-        color: root.foreground
-        font.pixelSize: Style.font.title
-        font.bold: true
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        onClicked: root.settingsVisible = !root.settingsVisible
       }
     }
   }
