@@ -116,6 +116,12 @@ Panel {
   }
 
   function localMode() { return String(settingValue("connectionMode", "remote")) === "local" }
+  function loadSettings() {
+    var loaded = ({})
+    var source = root.settings || ({})
+    for (var key in source) if (key !== "id") loaded[key] = source[key]
+    root.uiSettings = loaded
+  }
   function showBalance() { return settingBool("balanceVisible", true) }
   function showDayChart() { return settingBool("tokensByDayVisible", true) }
   function showModelUsage() { return settingBool("modelUsageVisible", true) }
@@ -413,12 +419,12 @@ Panel {
   Component.onCompleted: root.refreshNow()
   onOpenedChanged: {
     if (root.opened) {
-      var loaded = ({})
-      var source = root.settings || ({})
-      for (var key in source) if (key !== "id") loaded[key] = source[key]
-      root.uiSettings = loaded
+      root.loadSettings()
       root.refreshNow()
     }
+  }
+  onSettingsVisibleChanged: {
+    if (root.settingsVisible) root.loadSettings()
   }
 
   IpcHandler {
@@ -552,6 +558,8 @@ Panel {
                 TapHandler {
                   onTapped: {
                     root.settingsVisible = !root.settingsVisible
+                    // When opening settings, close the main panel
+                    if (root.settingsVisible) root.close()
                     // Visual feedback: brief accent pulse
                     gearAccent.start()
                   }
@@ -596,167 +604,10 @@ Panel {
           }
 
           // ---------- Settings ----------
-          PanelSeparator { visible: root.settingsVisible; foreground: root.foreground }
-
-            Column {
-            id: settingsColumn
-            visible: root.settingsVisible
-            width: parent.width
-            spacing: Style.space(8)
-
-            PanelSectionHeader {
-              width: parent.width
-              text: "CONNECTION"
-              foreground: root.dim
-              fontFamily: root.fontFamily
-            }
-
-            Row {
-              width: parent.width
-              spacing: Style.space(12)
-
-              Text {
-                text: (root.localMode() ? "●" : "○") + " Local"
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                TapHandler {
-                  onTapped: {
-                    root.saveSettings({ connectionMode: "local", bridgeUrl: "http://localhost:8643" })
-                    bridgeUrlInput.text = "http://localhost:8643"
-                  }
-                }
-              }
-
-              Text {
-                text: (!root.localMode() ? "●" : "○") + " Remote"
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                TapHandler {
-                  onTapped: {
-                    var url = root.localMode() ? "http://192.168.2.41:8643" : root.bridgeUrl()
-                    root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
-                    bridgeUrlInput.text = url
-                  }
-                }
-              }
-            }
-
-            Row {
-              width: parent.width
-              spacing: Style.space(8)
-
-              Text {
-                text: "Bridge URL"
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                verticalAlignment: Text.AlignVCenter
-              }
-
-              Rectangle {
-                width: parent.width - Style.space(84)
-                height: Style.space(28)
-                color: root.alpha(root.foreground, root.localMode() ? 0.04 : 0.08)
-                border.width: 1
-                border.color: root.alpha(root.foreground, root.localMode() ? 0.10 : 0.30)
-                radius: Style.cornerRadius
-
-                TextInput {
-                  id: bridgeUrlInput
-                  anchors.fill: parent
-                  anchors.leftMargin: Style.space(8)
-                  anchors.rightMargin: Style.space(8)
-                  text: root.bridgeUrl()
-                  color: root.localMode() ? root.dim : root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                  readOnly: root.localMode()
-                  selectByMouse: true
-                  cursorVisible: !root.localMode()
-                  activeFocusOnTab: true
-                  verticalAlignment: TextInput.AlignVCenter
-                  onEditingFinished: {
-                    if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
-                  }
-                  TapHandler {
-                    onTapped: {
-                      if (!root.localMode()) {
-                        parent.forceActiveFocus()
-                        parent.cursorVisible = true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "Status: Connected · " + root.heroMeta()
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-
-            PanelSectionHeader {
-              width: parent.width
-              text: "VISIBILITY"
-              foreground: root.dim
-              fontFamily: root.fontFamily
-            }
-
-            Repeater {
-              model: [
-                { key: "balanceVisible", label: "Balance card" },
-                { key: "tokensByDayVisible", label: "Tokens by day chart" },
-                { key: "modelUsageVisible", label: "Model usage (30d)" },
-                { key: "providerAccordionVisible", label: "Provider accordion" },
-                { key: "recentSessionsVisible", label: "Recent sessions" }
-              ]
-              delegate: Text {
-                required property var modelData
-                width: parent.width
-                leftPadding: Style.space(8)
-                text: root.settingBool(modelData.key, true) ? "☑ " + modelData.label : "☐ " + modelData.label
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                TapHandler {
-                  onTapped: root.saveSetting(modelData.key, !root.settingBool(modelData.key, true))
-                }
-              }
-            }
-
-            PanelSectionHeader {
-              width: parent.width
-              text: "ABOUT"
-              foreground: root.dim
-              fontFamily: root.fontFamily
-            }
-
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "hermes-agent-widget v0.2"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-
-            Text {
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(8)
-              text: "github.com/r3pc0n/hermes-agent-widget"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-
-            Item { width: 1; height: Style.space(4) }
-          }
+          // Settings moved to a separate PopupCard (below) to avoid PanelKeyCatcher
+          // keyboard interception. The gear icon toggles root.settingsVisible.
+          // Inline fallback kept hidden unless USE_INLINE_SETTINGS is set to true.
+          Item { visible: false; width: 1; height: 1 }
 
           // ---------- Balance ----------
           PanelSeparator { visible: root.showBalance(); foreground: root.foreground }
@@ -1063,6 +914,225 @@ Panel {
             horizontalAlignment: Text.AlignHCenter
           }
         }
+      }
+    }
+  }
+
+  // Settings popup — no PanelKeyCatcher, so TextInput and keyboard work natively
+  PopupCard {
+    id: settingsPanel
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    open: root.settingsVisible
+    contentWidth: settingsPanel.fittedContentWidth(Style.space(392))
+    contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(500))
+
+    Flickable {
+      id: settingsFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: settingsPopupColumn.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+      Column {
+        id: settingsPopupColumn
+        width: parent.width
+        spacing: Style.space(12)
+
+        // Header with back button
+        Item {
+          width: parent.width
+          implicitHeight: Math.max(backBtn.implicitHeight, settingsTitle.implicitHeight) + Style.space(8)
+
+          Text {
+            id: backBtn
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(12)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "← Back"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            TapHandler { onTapped: root.settingsVisible = false }
+          }
+
+          Text {
+            id: settingsTitle
+            anchors.centerIn: parent
+            text: "SETTINGS"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
+        // CONNECTION
+        PanelSectionHeader {
+          width: parent.width
+          text: "CONNECTION"
+          foreground: root.dim
+          fontFamily: root.fontFamily
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(12)
+          leftPadding: Style.space(8)
+
+          Text {
+            text: (root.localMode() ? "●" : "○") + " Local"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            TapHandler {
+              onTapped: {
+                root.saveSettings({ connectionMode: "local", bridgeUrl: "http://localhost:8643" })
+              }
+            }
+          }
+
+          Text {
+            text: (!root.localMode() ? "●" : "○") + " Remote"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            TapHandler {
+              onTapped: {
+                var url = root.localMode() ? "http://192.168.2.41:8643" : root.bridgeUrl()
+                root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
+              }
+            }
+          }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+          leftPadding: Style.space(8)
+
+          Text {
+            text: "Bridge URL"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            verticalAlignment: Text.AlignVCenter
+          }
+
+          Rectangle {
+            width: parent.width - Style.space(92)
+            height: Style.space(28)
+            color: root.alpha(root.foreground, root.localMode() ? 0.04 : 0.08)
+            border.width: 1
+            border.color: root.alpha(root.foreground, root.localMode() ? 0.10 : 0.30)
+            radius: Style.cornerRadius
+
+            TextInput {
+              id: bridgeUrlInput
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(8)
+              text: root.bridgeUrl()
+              color: root.localMode() ? root.dim : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              readOnly: root.localMode()
+              selectByMouse: true
+              cursorVisible: !root.localMode()
+              activeFocusOnTab: true
+              verticalAlignment: TextInput.AlignVCenter
+              onEditingFinished: {
+                if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
+              }
+              TapHandler {
+                onTapped: {
+                  if (!root.localMode()) {
+                    parent.forceActiveFocus()
+                    parent.cursorVisible = true
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        Text {
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(8)
+          text: "Status: Connected · " + root.heroMeta()
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
+        // VISIBILITY
+        PanelSectionHeader {
+          width: parent.width
+          text: "VISIBILITY"
+          foreground: root.dim
+          fontFamily: root.fontFamily
+        }
+
+        Repeater {
+          model: [
+            { key: "balanceVisible", label: "Balance card" },
+            { key: "tokensByDayVisible", label: "Tokens by day chart" },
+            { key: "modelUsageVisible", label: "Model usage (30d)" },
+            { key: "providerAccordionVisible", label: "Provider accordion" },
+            { key: "recentSessionsVisible", label: "Recent sessions" }
+          ]
+          delegate: Text {
+            required property var modelData
+            width: parent.width
+            leftPadding: Style.space(8)
+            text: root.settingBool(modelData.key, true) ? "☑ " + modelData.label : "☐ " + modelData.label
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            TapHandler {
+              onTapped: root.saveSetting(modelData.key, !root.settingBool(modelData.key, true))
+            }
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
+        // ABOUT
+        PanelSectionHeader {
+          width: parent.width
+          text: "ABOUT"
+          foreground: root.dim
+          fontFamily: root.fontFamily
+        }
+
+        Text {
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(8)
+          text: "hermes-agent-widget v0.2"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(8)
+          text: "github.com/r3pc0n/hermes-agent-widget"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Item { width: 1; height: Style.space(4) }
       }
     }
   }
