@@ -925,6 +925,11 @@ Panel {
     owner: root
     bar: root.bar
     open: root.settingsVisible
+    // PopupCard is an xdg-popup and is non-focusable by default.  That is
+    // fine for display-only cards, but it prevents a child TextInput from
+    // ever receiving keyboard focus (and therefore makes the URL field look
+    // clickable while silently dropping all key events).
+    focusable: true
     contentWidth: settingsPanel.fittedContentWidth(Style.space(392))
     contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(500))
 
@@ -1037,7 +1042,12 @@ Panel {
               readOnly: root.localMode()
               selectByMouse: true
               cursorVisible: !root.localMode()
+              activeFocusOnPress: true
               activeFocusOnTab: true
+              onActiveFocusChanged: {
+                if (activeFocus) Qt.inputMethod.show()
+                else Qt.inputMethod.hide()
+              }
               verticalAlignment: TextInput.AlignVCenter
               onEditingFinished: {
                 if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
