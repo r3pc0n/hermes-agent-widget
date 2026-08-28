@@ -1,8 +1,8 @@
-# Echo (omarchy bar widget)
+# Hermes model (Omarchy bar widget)
 
-A Quickshell bar widget for Omarchy that shows **Echo's** usage, provider
-balance, and a **model switcher** — all fed from a Hermes agent via a local
-or remote usage bridge.
+A Quickshell bar widget for Omarchy that shows your **Hermes agent's** usage,
+provider balance, and a **model switcher** — all fed from a Hermes agent
+via a local or remote usage bridge.
 
 - **Balance** — Credits remaining with a usage meter, showing your available
   budget at a glance. Works with DeepSeek, OpenRouter, and OAuth providers.
@@ -59,8 +59,8 @@ Then in the widget settings:
 
 Simply give your Hermes agent this prompt:
 
-> Install the Echo Usage Bridge on this machine so an Omarchy bar widget can
-> pull usage data from my Hermes agent. Run:
+> Install the Hermes Usage Bridge on this machine so an Omarchy bar widget can
+> pull usage data from my agent. Run:
 >
 > ```sh
 > bash <(curl -s https://raw.githubusercontent.com/r3pc0n/hermes-agent-widget/main/install-bridge.sh)
@@ -109,4 +109,4 @@ the widget just can't fetch a balance for that provider type.
 
 ## License
 
-[MIT](LICENSE) © 2026 Sven Radetzky (original), fork by Echo.
+[MIT](LICENSE) © 2026 — based on the work of Sven Radetzky ([omarchy-hermes-openrouter](https://github.com/sradetzky/omarchy-hermes-openrouter)).
