@@ -210,6 +210,9 @@ Panel {
   }
 
   function providerUrl() {
+    // Prefer the Hermes dashboard URL when the bridge reports it.
+    var dash = root.hermes && root.hermes.dashboardUrl
+    if (dash) return dash
     var p = root.currentProvider()
     if (p === "deepseek") return "https://platform.deepseek.com/usage"
     if (p === "openrouter") return "https://openrouter.ai/activity"
@@ -362,7 +365,8 @@ Panel {
         model: String(modelResponse.current || ""),
         provider: String(ech.provider || "deepseek"),
         profileCount: 1,
-        profiles: [root.localMode() ? "local" : "remote"]
+        profiles: [root.localMode() ? "local" : "remote"],
+        dashboardUrl: String(rec.dashboardUrl || "http://localhost:9119")
       },
       usage: {
         today: { tokens: int0(rec.todayTotalTokens), cost: money(ech.costToday), calls: int0(rec.todayPrompts) },

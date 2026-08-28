@@ -146,6 +146,40 @@ def current_model():
     return model, provider
 
 
+def dashboard_url(cfg=CFG):
+    """Read the Hermes dashboard URL from config.yaml."""
+    try:
+        with open(cfg) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return "http://localhost:9119"
+    port = 9119
+    host = "127.0.0.1"
+    in_dash = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if re.match(r"^dashboard\s*:", line):
+            in_dash = True
+            continue
+        if in_dash:
+            if stripped and stripped[0] not in " \t":
+                break
+            m = re.match(r"^\s*(port|host)\s*:\s*(.+)$", line)
+            if m:
+                key, val = m.group(1), m.group(2).strip().strip("'\"")
+                if key == "port":
+                    try:
+                        port = int(val)
+                    except ValueError:
+                        pass
+                elif key == "host":
+                    host = val
+    host = "127.0.0.1" if host == "0.0.0.0" else host
+    return f"http://{host}:{port}"
+
+
 def set_model(model_id, cfg=CFG):
     """Switch model.default + provider + base_url in config.yaml (atomic)."""
     if not SAFE_ID.match(model_id):
@@ -675,6 +709,7 @@ def build_record():
         "modelUsage": usage_by_model,
         "limits": limits,
         "balance": balance,
+        "dashboardUrl": dashboard_url(),
         "echo": {
             "model": model_id,
             "provider": provider,
