@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
@@ -1137,7 +1138,25 @@ Panel {
     open: root.chatActive
     focusTarget: chatInput
     contentWidth: chatPanel.fittedContentWidth(Style.space(392))
-    contentHeight: chatPanel.fittedContentHeight(chatColumn.implicitHeight, Style.space(660))
+    contentHeight: chatPanel.fittedContentHeight(Math.max(chatColumn.implicitHeight, Style.space(400)), Style.space(660))
+
+    // Use OnDemand keyboard focus so clicking outside can deactivate the
+    // surface and close chat instead of trapping input in the panel.
+    Component.onCompleted: {
+      Qt.callLater(function() {
+        var ls = chatPanel.Window.window?.WlrLayershell
+        if (ls) ls.keyboardFocus = WlrKeyboardFocus.OnDemand
+
+        var win = chatPanel.Window.window
+        if (win) {
+          win.activeChanged.connect(function() {
+            if (!win.active) root.chatActive = false
+          })
+        }
+      })
+    }
+
+    Keys.onEscapePressed: root.chatActive = false
 
     Column {
       id: chatColumn
