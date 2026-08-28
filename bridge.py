@@ -729,38 +729,50 @@ def build_record():
 
 # ---------------------------------------------------------------- chat proxy
 
-HERMES_BIN = os.path.join(HOME, ".hermes", "hermes-agent", "venv", "bin", "hermes")
 
+class _ChatClient:
+    """Stateless chat proxy via ``hermes chat -q``.
 
-def query_hermes(message):
-    """Send a single message to Hermes and return the response text.
-
-    Shells out to ``hermes chat -q`` with a short timeout. The response
-    is extracted from the framed terminal output (between the ╭ and ╰
-    box lines) — a bit hacky but reliable for v1.
+    ``-q`` mode spawns a fresh process per message. Hermes SIGABRTs on
+    shutdown (background threads race Python finalization), but the response
+    is written to stdout before the crash, so it's invisible to the caller.
     """
-    if not message or not os.path.exists(HERMES_BIN):
-        return None
-    try:
-        proc = subprocess.run(
-            [HERMES_BIN, "chat", "-q", message],
-            capture_output=True, text=True, timeout=60,
-            env={**os.environ, "TERM": "dumb"},
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        # Extract the response between the box frames
-        m = re.search(r"╭[─╴][^╮]+╮\n(.+?)\n╰", out, re.DOTALL)
-        if m:
-            return m.group(1).strip()
-        # Fallback: strip known prefixes and return whatever remains
-        for prefix in ("Query:", "Initializing agent", "Resume this session"):
-            lines = [l for l in out.splitlines() if prefix not in l]
-            out = "\n".join(lines)
-        return out.strip()[:2000] or None
-    except subprocess.TimeoutExpired:
-        return None
-    except OSError:
-        return None
+
+    _BIN = os.path.join(HOME, ".hermes", "hermes-agent", "venv", "bin", "hermes")
+
+    def query(self, message: str) -> str | None:
+        if not message or not os.path.exists(self._BIN):
+            return None
+        try:
+            proc = subprocess.run(
+                [self._BIN, "chat", "-q", message],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd="/",
+                env={**os.environ, "TERM": "dumb"},
+            )
+            out = (proc.stdout or "") + (proc.stderr or "")
+            m = re.search(r"╭[─╴][^╮]+╮\n(.+?)\n╰", out, re.DOTALL)
+            if m:
+                return m.group(1).strip()
+            for prefix in ("Query:", "Initializing agent", "Resume this session"):
+                lines = [line for line in out.splitlines() if prefix not in line]
+                out = "\n".join(lines)
+            return out.strip()[:2000] or None
+        except subprocess.TimeoutExpired:
+            return None
+        except OSError:
+            return None
+
+    def new_session(self):
+        pass  # Stateless — each query is already a fresh context.
+
+    def close(self):
+        pass
+
+
+_CHAT = _ChatClient()
 
 
 # ---------------------------------------------------------------- http
@@ -815,10 +827,14 @@ class Handler(BaseHTTPRequestHandler):
             message = str(body.get("message", "")).strip()
             if not message:
                 return self._json({"error": "missing message"}, 400)
-            response = query_hermes(message)
+            response = _CHAT.query(message)
             if response:
                 return self._json({"response": response})
             return self._json({"error": "Hermes agent not reachable"}, 503)
+
+        if path == "/chat/new":
+            _CHAT.new_session()
+            return self._json({"ok": True, "session": "new"})
 
         if path != "/model":
             return self._json({"error": "not found"}, 404)
