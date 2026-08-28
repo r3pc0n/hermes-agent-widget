@@ -547,6 +547,7 @@ Panel {
   Process {
     id: bridgeProcess
     command: ["python3", root.bridgeScript]
+    workingDirectory: "/"
     running: true
   }
 
