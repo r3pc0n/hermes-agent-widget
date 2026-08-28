@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Echo Usage Bridge — serves Echo's Hermes usage + provider balance to the
+"""Hermes Usage Bridge — serves Hermes agent usage + provider balance to the
 echo.model Omarchy bar widget.
 
 GET /hermes.json  -> usage record (balance, model usage, daily breakdown)

@@ -209,6 +209,13 @@ Panel {
     return root.providerName(root.currentProvider())
   }
 
+  function providerUrl() {
+    var p = root.currentProvider()
+    if (p === "deepseek") return "https://platform.deepseek.com/usage"
+    if (p === "openrouter") return "https://openrouter.ai/activity"
+    return ""
+  }
+
   function currentProvider() {
     return hermes && hermes.provider ? String(hermes.provider) : "deepseek"
   }
@@ -222,7 +229,7 @@ Panel {
 
   function statusText() {
     if (api && api.configured && !api.ok)
-      return "Echo usage bridge unreachable — balance unavailable. Usage and the model list still work."
+      return "Usage bridge unreachable — balance unavailable. Usage and the model list still work."
     return ""
   }
 
@@ -399,7 +406,7 @@ Panel {
 
   function applyModel(id) {
     if (id === "" || id === root.applyingModel) return
-    // The switch is POSTed to the Echo usage bridge /model endpoint by the
+    // The switch is POSTed to the usage bridge /model endpoint by the
     // local `echo-model` script (which carries the switch token). Only accept
     // well-formed model ids — this rejects newlines and anything outside a
     // safe charset that a compromised model listing could inject.
@@ -597,7 +604,7 @@ Panel {
     }
     active: root.alarming
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) { if (root.bar) root.bar.run("xdg-open https://platform.deepseek.com/usage") }
+      if (buttonCode === Qt.RightButton) { var u = root.providerUrl(); if (u && root.bar) root.bar.run("xdg-open " + u) }
       else if (buttonCode === Qt.MiddleButton) root.fetchFromBridge()
       else if (root.settingsVisible) root.settingsVisible = false
       else root.toggle()
@@ -857,7 +864,7 @@ Panel {
           Text {
             width: parent.width
             visible: root.keyUsage !== null
-            text: root.providerLabel() + " balance · usage from the Echo bridge"
+            text: root.providerLabel() + " balance · usage from the bridge"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
@@ -1021,7 +1028,7 @@ Panel {
           Text {
             width: parent.width
             visible: root.showProviderAccordion()
-            text: "Switches Echo's model through the usage bridge.\nmodel.default — new sessions use it; open sessions keep theirs."
+            text: "Switches the Hermes agent's model through the usage bridge.\nmodel.default — new sessions use it; open sessions keep theirs."
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
