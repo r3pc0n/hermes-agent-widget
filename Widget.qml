@@ -807,9 +807,11 @@ Panel {
 
             Text {
               width: parent.width
-              text: root.api && root.api.ok
-                ? root.fmtMoney(root.api.used) + " spent of " + root.fmtMoney(root.funded) + " funded"
-                : ""
+              text: root.api && root.api.balanceAvailable === false
+                ? "estimated from Hermes usage data"
+                : (root.api && root.api.ok
+                  ? root.fmtMoney(root.api.used) + " spent of " + root.fmtMoney(root.funded) + " funded"
+                  : "")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -817,6 +819,7 @@ Panel {
 
             Text {
               width: parent.width
+              visible: root.api && root.api.balanceAvailable !== false
               text: "Whole " + root.providerLabel() + " account — includes all API keys"
               color: root.dim
               font.family: root.fontFamily
