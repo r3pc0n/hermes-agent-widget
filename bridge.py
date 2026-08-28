@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -726,6 +727,42 @@ def build_record():
     }
 
 
+# ---------------------------------------------------------------- chat proxy
+
+HERMES_BIN = os.path.join(HOME, ".hermes", "hermes-agent", "venv", "bin", "hermes")
+
+
+def query_hermes(message):
+    """Send a single message to Hermes and return the response text.
+
+    Shells out to ``hermes chat -q`` with a short timeout. The response
+    is extracted from the framed terminal output (between the ╭ and ╰
+    box lines) — a bit hacky but reliable for v1.
+    """
+    if not message or not os.path.exists(HERMES_BIN):
+        return None
+    try:
+        proc = subprocess.run(
+            [HERMES_BIN, "chat", "-q", message],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, "TERM": "dumb"},
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+        # Extract the response between the box frames
+        m = re.search(r"╭[─╴][^╮]+╮\n(.+?)\n╰", out, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        # Fallback: strip known prefixes and return whatever remains
+        for prefix in ("Query:", "Initializing agent", "Resume this session"):
+            lines = [l for l in out.splitlines() if prefix not in l]
+            out = "\n".join(lines)
+        return out.strip()[:2000] or None
+    except subprocess.TimeoutExpired:
+        return None
+    except OSError:
+        return None
+
+
 # ---------------------------------------------------------------- http
 
 
@@ -767,19 +804,30 @@ class Handler(BaseHTTPRequestHandler):
         })
 
     def do_POST(self):
+        path = self.path.split("?")[0]
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length).decode()) if length else {}
+        except Exception:
+            return self._json({"error": "bad json"}, 400)
+
+        if path == "/chat":
+            message = str(body.get("message", "")).strip()
+            if not message:
+                return self._json({"error": "missing message"}, 400)
+            response = query_hermes(message)
+            if response:
+                return self._json({"response": response})
+            return self._json({"error": "Hermes agent not reachable"}, 503)
+
+        if path != "/model":
+            return self._json({"error": "not found"}, 404)
         if not MODEL_TOKEN:
             return self._json({"error": "model switching disabled (ECHO_MODEL_TOKEN unset)"}, 403)
         hdr = self.headers.get("Authorization", "")
         alt = self.headers.get("X-Echo-Token", "")
         if hdr != f"Bearer {MODEL_TOKEN}" and alt != MODEL_TOKEN:
             return self._json({"error": "unauthorized"}, 401)
-        if self.path.split("?")[0] != "/model":
-            return self._json({"error": "not found"}, 404)
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length).decode()) if length else {}
-        except Exception:
-            return self._json({"error": "bad json"}, 400)
         model_id = str(body.get("model", "")).strip()
         if not model_id:
             return self._json({"error": "missing model"}, 400)
