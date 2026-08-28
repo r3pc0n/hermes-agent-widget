@@ -670,7 +670,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       visible: true
-      blocked: root.chatActive && chatInput.activeFocus
+      blocked: root.chatActive
 
       onMoveRequested: function(dx, dy) {
         if (dx !== 0) { root.cursorActive = true; root.selectCursor(root.modelCursor + dx) }
@@ -1130,9 +1130,15 @@ Panel {
         id: chatView
         anchors.fill: parent
         visible: root.chatActive
-        focus: root.chatActive
         onVisibleChanged: {
-          if (visible) Qt.callLater(chatInput.forceActiveFocus)
+          if (visible) chatFocusTimer.start()
+        }
+
+        Timer {
+          id: chatFocusTimer
+          interval: 1
+          repeat: false
+          onTriggered: chatInput.forceActiveFocus()
         }
 
         Text {
@@ -1219,7 +1225,6 @@ Panel {
             font.pixelSize: Style.font.caption
             activeFocusOnPress: true
             enabled: !root.chatBusy
-            focus: root.chatActive
             clip: true
             onAccepted: {
               root.sendChatMessage(text)
