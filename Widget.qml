@@ -1169,6 +1169,7 @@ Panel {
 
       Text {
         anchors.right: parent.right
+        anchors.rightMargin: Style.space(48)
         anchors.verticalCenter: parent.verticalCenter
         text: "⌂"
         color: root.dim
@@ -1176,6 +1177,26 @@ Panel {
         font.pixelSize: Style.font.bodySmall
         TapHandler {
           onTapped: if (root.bar) root.bar.run("xdg-terminal-exec")
+        }
+      }
+
+      Text {
+        anchors.right: parent.right
+        anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
+        text: "✎"
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        ToolTip.visible: newSessionHover.hovered
+        ToolTip.text: "New chat session"
+        HoverHandler { id: newSessionHover }
+        TapHandler {
+          onTapped: {
+            var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+            root.chatMessages = []
+            root.fetchJson(url + "/chat/new", function(resp) {}, function() {}, "POST", "{}")
+          }
         }
       }
 
@@ -1221,7 +1242,7 @@ Panel {
             required property var modelData
             width: parent.width
             wrapMode: Text.WordWrap
-            text: (modelData.role === "user" ? "You: " : "Echo: ") + modelData.text
+            text: (modelData.role === "user" ? "You: " : "Hermes: ") + modelData.text
             color: modelData.role === "user" ? root.foreground : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
