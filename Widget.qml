@@ -643,7 +643,6 @@ Panel {
       if (buttonCode === Qt.RightButton) {
         root.settingsVisible = false
         root.chatActive = true
-        root.open()
       }
       else if (buttonCode === Qt.MiddleButton) root.fetchFromBridge()
       else if (root.settingsVisible) root.settingsVisible = false
@@ -662,7 +661,7 @@ Panel {
     anchorItem: button
     owner: root
     bar: root.bar
-    open: root.opened
+    open: root.opened && !root.chatActive
     contentWidth: panel.fittedContentWidth(Style.space(392))
     contentHeight: panel.fittedContentHeight(contentColumn.implicitHeight, Style.space(660))
 
@@ -670,7 +669,6 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       visible: true
-      blocked: root.chatActive
 
       onMoveRequested: function(dx, dy) {
         if (dx !== 0) { root.cursorActive = true; root.selectCursor(root.modelCursor + dx) }
@@ -1124,27 +1122,36 @@ Panel {
         }
       }
 
-      // Quick chat is a temporary second page in the same card. The bridge
-      // /chat endpoint still needs to be implemented to proxy to Hermes.
-      Item {
-        id: chatView
-        anchors.fill: parent
-        visible: root.chatActive
-        onVisibleChanged: {
-          if (visible) chatFocusTimer.start()
-        }
+    }
+  }
 
-        Timer {
-          id: chatFocusTimer
-          interval: 1
-          repeat: false
-          onTriggered: chatInput.forceActiveFocus()
-        }
+  // Chat uses KeyboardPanel rather than PopupCard: xdg-popup surfaces are
+  // intentionally non-focusable, so a TextInput cannot receive keyboard
+  // focus there. This keeps chat visually aligned with the main card while
+  // using the same layer-shell focus path as the settings editor.
+  KeyboardPanel {
+    id: chatPanel
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    open: root.chatActive
+    focusTarget: chatInput
+    contentWidth: chatPanel.fittedContentWidth(Style.space(392))
+    contentHeight: chatPanel.fittedContentHeight(chatColumn.implicitHeight, Style.space(660))
+
+    Column {
+      id: chatColumn
+      width: parent.width
+      spacing: Style.space(8)
+
+      Item {
+        width: parent.width
+        height: Style.space(20)
 
         Text {
-          id: chatBack
           anchors.left: parent.left
-          anchors.top: parent.top
+          anchors.leftMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
           text: "← Chat with Hermes"
           color: root.foreground
           font.family: root.fontFamily
@@ -1154,7 +1161,8 @@ Panel {
 
         Text {
           anchors.right: parent.right
-          anchors.top: parent.top
+          anchors.rightMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
           text: "⌂"
           color: root.dim
           font.family: root.fontFamily
@@ -1164,98 +1172,104 @@ Panel {
           }
         }
 
-        ScrollView {
-          id: chatScroll
-          anchors.left: parent.left
-          anchors.right: parent.right
-          anchors.top: chatBack.bottom
-          anchors.bottom: chatInputBar.top
-          anchors.topMargin: Style.space(12)
-          anchors.bottomMargin: Style.space(8)
-          clip: true
-          ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-
-          Column {
-            width: chatScroll.width
-            spacing: Style.space(8)
-
-            Repeater {
-              model: root.chatMessages
-              delegate: Text {
-                required property var modelData
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: (modelData.role === "user" ? "You: " : "Echo: ") + modelData.text
-                color: modelData.role === "user" ? root.foreground : root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-            }
-
-            Text {
-              visible: root.chatBusy
-              text: "Echo is thinking…"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-          }
-        }
-
         Rectangle {
-          id: chatInputBar
           anchors.left: parent.left
           anchors.right: parent.right
           anchors.bottom: parent.bottom
-          height: Style.space(34)
-          color: root.alpha(root.foreground, 0.06)
-          border.width: 1
-          border.color: root.alpha(root.foreground, 0.22)
-          radius: Style.cornerRadius
+          height: Math.max(1, Style.space(2))
+          radius: height / 2
+          color: root.accent
+          opacity: 0.75
+        }
+      }
 
-          TextInput {
-            id: chatInput
-            anchors.left: parent.left
-            anchors.right: chatSend.left
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Style.space(8)
-            anchors.rightMargin: Style.space(4)
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            activeFocusOnPress: true
-            enabled: !root.chatBusy
-            clip: true
-            onAccepted: {
-              root.sendChatMessage(text)
-              text = ""
+      PanelSeparator { foreground: root.foreground }
+
+      ScrollView {
+        id: chatScroll
+        width: parent.width
+        height: Math.max(100, chatColumn.height - chatInputRow.height - Style.space(80))
+        clip: true
+        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
+        Column {
+          width: chatScroll.width
+          spacing: Style.space(8)
+
+          Repeater {
+            model: root.chatMessages
+            delegate: Text {
+              required property var modelData
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: (modelData.role === "user" ? "You: " : "Echo: ") + modelData.text
+              color: modelData.role === "user" ? root.foreground : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
             }
           }
 
           Text {
-            anchors.left: chatInput.left
-            anchors.verticalCenter: chatInput.verticalCenter
-            visible: !chatInput.text && !chatInput.activeFocus
-            text: "Type a message…"
+            visible: root.chatBusy
+            text: "Echo is thinking…"
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
           }
+        }
+      }
 
-          Text {
-            id: chatSend
-            anchors.right: parent.right
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "→"
-            color: root.chatBusy ? root.dim : root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            TapHandler {
-              onTapped: {
-                root.sendChatMessage(chatInput.text)
-                chatInput.text = ""
-              }
+      Rectangle {
+        id: chatInputRow
+        width: parent.width
+        height: Style.space(34)
+        color: root.alpha(root.foreground, 0.06)
+        border.width: 1
+        border.color: root.alpha(root.foreground, 0.22)
+        radius: Style.cornerRadius
+
+        TextInput {
+          id: chatInput
+          anchors.left: parent.left
+          anchors.right: chatSendBtn.left
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.leftMargin: Style.space(8)
+          anchors.rightMargin: Style.space(4)
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          activeFocusOnPress: true
+          enabled: !root.chatBusy
+          clip: true
+          onAccepted: {
+            root.sendChatMessage(text)
+            text = ""
+          }
+        }
+
+        Text {
+          anchors.left: chatInput.left
+          anchors.verticalCenter: chatInput.verticalCenter
+          visible: !chatInput.text && !chatInput.activeFocus
+          text: "Type a message…"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          id: chatSendBtn
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
+          text: "→"
+          color: root.chatBusy ? root.dim : root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          TapHandler {
+            onTapped: {
+              root.sendChatMessage(chatInput.text)
+              chatInput.text = ""
             }
           }
         }
