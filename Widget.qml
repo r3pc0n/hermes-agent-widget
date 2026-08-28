@@ -7,8 +7,8 @@ import qs.Commons
 import qs.Ui
 
 // echo.model — Echo usage, DeepSeek balance, and a model switcher: one bar
-// icon and one panel. Data is fetched directly from the configured
-// Hermes bridge URL via QML HTTP requests.
+// icon and one panel. Data is fetched directly from the configured Hermes
+// bridge URL via QML HTTP requests.
 Panel {
   id: root
   moduleName: "echo.model"
@@ -22,10 +22,6 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property string home: Quickshell.env("HOME") || ""
-  readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/echo-model"
-  readonly property string stateFile: stateDir + "/stats.json"
-  readonly property string scriptPath: String(Qt.resolvedUrl("collect.py")).replace(/^file:\/\//, "")
   readonly property url iconSource: Qt.resolvedUrl("assets/hermes-icon.png")
 
   property var stats: null
@@ -121,10 +117,7 @@ Panel {
     var loaded = ({})
     var source = root.settings || ({})
     for (var key in source) if (key !== "id") loaded[key] = source[key]
-    // If no bridgeUrl is configured, set a placeholder
-    if (!loaded.bridgeUrl || loaded.bridgeUrl === "") {
-      loaded.connectionMode = "local"
-    }
+    if (!loaded.bridgeUrl || loaded.bridgeUrl === "") loaded.connectionMode = "local"
     root.uiSettings = loaded
   }
   function showBalance() { return settingBool("balanceVisible", true) }
@@ -268,17 +261,136 @@ Panel {
     return m ? m[1] + ":" + m[2] : ""
   }
 
-  function refreshNow() {
-    if (refreshing) return
-    refreshing = true
-    collectProcess.command = ["python3", root.scriptPath]
-    collectProcess.running = true
+  function fetchJson(url, onSuccess, onError) {
+    var req = new XMLHttpRequest()
+    var finished = false
+    function fail() {
+      if (finished) return
+      finished = true
+      onError()
+    }
+    req.timeout = 5000
+    req.onreadystatechange = function() {
+      if (req.readyState !== XMLHttpRequest.DONE || finished) return
+      if (req.status !== 200) { fail(); return }
+      var parsed = null
+      try { parsed = JSON.parse(req.responseText) } catch (e) { fail(); return }
+      if (parsed && typeof parsed === "object") {
+        finished = true
+        onSuccess(parsed)
+      } else fail()
+    }
+    req.onerror = fail
+    req.ontimeout = fail
+    try {
+      req.open("GET", url)
+      req.send()
+    } catch (e) { fail() }
   }
 
-  function applyStats(c) {
-    var parsed = null
-    try { parsed = JSON.parse(String(c || "")) } catch (e) { }
-    if (parsed && typeof parsed === "object") root.stats = parsed
+  function money(v) {
+    var n = Number(v)
+    return isNaN(n) ? 0 : Math.round(n * 10000) / 10000
+  }
+
+  function int0(v) {
+    var n = Number(v)
+    return isNaN(n) ? 0 : Math.floor(n)
+  }
+
+  function buildStats(hermesData, modelsData, bridgeUrl) {
+    var rec = hermesData || ({})
+    var modelResponse = modelsData || ({})
+    var ok = Object.keys(rec).length > 0
+    var bal = rec.balance || ({})
+    var byModel = []
+    var modelUsage = rec.modelUsage || ({})
+    for (var model in modelUsage) {
+      var m = modelUsage[model] || ({})
+      byModel.push({
+        model: model,
+        tokens: int0(m.inputTokens) + int0(m.outputTokens) + int0(m.cacheReadInputTokens),
+        input: int0(m.inputTokens),
+        output: int0(m.outputTokens),
+        cache: int0(m.cacheReadInputTokens),
+        cost: money(m.cost)
+      })
+    }
+    byModel.sort(function(a, b) { return b.tokens - a.tokens })
+
+    var byDay = []
+    var recentDays = rec.recentDays || []
+    for (var di = 0; di < recentDays.length; di++) {
+      var d = recentDays[di] || ({})
+      byDay.push({
+        date: d.date || "",
+        tokens: int0(d.messageCount),
+        cost: money(d.cost),
+        costExact: Boolean(d.costExact)
+      })
+    }
+
+    var ech = rec.echo || ({})
+    var listedModels = Array.isArray(modelResponse.models) ? modelResponse.models : []
+    return {
+      updated: new Date().toISOString(),
+      api: {
+        configured: true,
+        ok: ok,
+        total: money(bal.funded),
+        used: money(bal.spent),
+        remaining: money(bal.remaining),
+        keyUsage: null,
+        keyCount: 1,
+        keyUsageComplete: false
+      },
+      hermes: {
+        home: bridgeUrl,
+        db: bridgeUrl + "/hermes.json",
+        config: "model.default via POST /model",
+        model: String(modelResponse.current || ""),
+        provider: String(ech.provider || "deepseek"),
+        profileCount: 1,
+        profiles: [root.localMode() ? "local" : "remote"]
+      },
+      usage: {
+        today: { tokens: int0(rec.todayTotalTokens), cost: money(ech.costToday), calls: int0(rec.todayPrompts) },
+        week: { tokens: byDay.reduce(function(s, d) { return s + d.tokens }, 0), cost: money(ech.costWeek), calls: 0 },
+        month30: { tokens: int0(ech.tokens30), cost: money(ech.cost30), calls: 0 },
+        allTime: { tokens: int0(ech.tokensAllTime), cost: money(ech.costAllTime), calls: 0 },
+        byDay: byDay,
+        byModel: byModel,
+        recentSessions: []
+      },
+      models: listedModels.filter(function(m) { return m && m.id }).map(function(m) {
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          provider: m.provider || "",
+          context: 0,
+          prompt: "",
+          completion: ""
+        }
+      })
+    }
+  }
+
+  function fetchFromBridge() {
+    if (refreshing) return
+    refreshing = true
+    var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+    fetchJson(url + "/hermes.json", function(hermesData) {
+      fetchJson(url + "/models", function(modelsData) {
+        root.stats = root.buildStats(hermesData, modelsData, url)
+        refreshing = false
+      }, function() {
+        root.stats = root.buildStats(hermesData, ({ }), url)
+        refreshing = false
+      })
+    }, function() {
+      root.stats = null
+      refreshing = false
+    })
   }
 
   function applyModel(id) {
@@ -369,33 +481,15 @@ Panel {
   }
 
   Process {
-    id: collectProcess
-    running: false
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.refreshing = false
-    }
-  }
-
-  Process {
     id: applyProcess
     running: false
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         root.applyingModel = ""
-        root.refreshNow()
+        root.fetchFromBridge()
       }
     }
-  }
-
-  FileView {
-    id: statsFile
-    path: root.stateFile
-    watchChanges: true
-    printErrors: false
-    onLoaded: root.applyStats(text())
-    onFileChanged: reload()
   }
 
   Timer {
@@ -403,7 +497,7 @@ Panel {
     interval: Math.max(30, Number(root.setting("refreshIntervalSec", 300))) * 1000
     running: true
     repeat: true
-    onTriggered: root.refreshNow()
+    onTriggered: root.fetchFromBridge()
   }
 
   onStatsChanged: {
@@ -421,11 +515,11 @@ Panel {
 
   onExpandedProviderChanged: root.clampCursor()
 
-  Component.onCompleted: root.refreshNow()
+  Component.onCompleted: root.fetchFromBridge()
   onOpenedChanged: {
     if (root.opened) {
       root.loadSettings()
-      root.refreshNow()
+      root.fetchFromBridge()
     }
   }
   onSettingsVisibleChanged: {
@@ -442,7 +536,7 @@ Panel {
       if (root.settingsVisible) root.settingsVisible = false
       else root.toggle()
     }
-    function refresh(): string { root.refreshNow(); return "ok" }
+    function refresh(): string { root.fetchFromBridge(); return "ok" }
   }
 
   BarIconButton {
@@ -476,7 +570,7 @@ Panel {
     active: root.alarming
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) { if (root.bar) root.bar.run("xdg-open https://platform.deepseek.com/usage") }
-      else if (buttonCode === Qt.MiddleButton) root.refreshNow()
+      else if (buttonCode === Qt.MiddleButton) root.fetchFromBridge()
       else if (root.settingsVisible) root.settingsVisible = false
       else root.toggle()
     }
@@ -519,7 +613,7 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refreshNow()
+        if (t === "r" || t === "R") root.fetchFromBridge()
         else if (t === "q" || t === "Q") root.close()
       }
 
@@ -570,9 +664,10 @@ Panel {
 
                 Text {
                   anchors.centerIn: parent
-                  text: "☰"
+                  text: "⚙"
                   color: root.foreground
                   font.pixelSize: Style.font.title
+                  font.bold: true
                 }
 
                 // TapHandler bypasses Flickable/PanelKeyCatcher event interception
