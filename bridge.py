@@ -657,7 +657,7 @@ def build_record():
         "id": "hermes",
         "name": "Echo · " + label,
         "updatedAt": iso_now(),
-        "ready": balance is not None,
+        "ready": True,
         "hasLocalStats": True,
         "scope": "account",
         "tierLabel": label,
