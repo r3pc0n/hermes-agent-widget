@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -446,13 +447,25 @@ Panel {
     bar: root.bar
     text: ""  // glyph hidden; the logo renders via iconComponent
     iconComponent: Component {
-      Image {
+      Item {
         anchors.fill: parent
-        anchors.margins: 1.5  // 13px in the 16px canvas — matches glyph size
-        source: Qt.resolvedUrl("assets/hermes-icon.png")
-        sourceSize: Qt.size(128, 128)
-        fillMode: Image.PreserveAspectFit
-        smooth: true
+
+        Image {
+          id: iconImg
+          anchors.centerIn: parent
+          width: 12
+          height: 12
+          source: Qt.resolvedUrl("assets/hermes-icon.png")
+          sourceSize: Qt.size(128, 128)
+          fillMode: Image.PreserveAspectFit
+          smooth: true
+        }
+
+        ColorOverlay {
+          anchors.fill: iconImg
+          source: iconImg
+          color: root.bar ? root.bar.foreground : "#d3c6aa"
+        }
       }
     }
     active: root.alarming
