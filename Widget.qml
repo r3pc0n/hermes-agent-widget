@@ -7,9 +7,8 @@ import qs.Commons
 import qs.Ui
 
 // echo.model — Echo usage, DeepSeek balance, and a model switcher: one bar
-// icon and one panel. All data comes from collect.py next to this file, which
-// relays the Echo usage bridge (192.168.2.41:8643) into a single JSON state
-// file this panel watches.
+// icon and one panel. Data is fetched directly from the configured
+// Hermes bridge URL via QML HTTP requests.
 Panel {
   id: root
   moduleName: "echo.model"
@@ -113,14 +112,19 @@ Panel {
   }
 
   function bridgeUrl() {
-    return String(settingValue("bridgeUrl", "http://192.168.2.41:8643"))
+    var val = settingValue("bridgeUrl", "")
+    return val === "" ? "http://your-hermes:8643" : String(val)
   }
 
-  function localMode() { return String(settingValue("connectionMode", "remote")) === "local" }
+  function localMode() { return String(settingValue("connectionMode", "local")) === "local" }
   function loadSettings() {
     var loaded = ({})
     var source = root.settings || ({})
     for (var key in source) if (key !== "id") loaded[key] = source[key]
+    // If no bridgeUrl is configured, set a placeholder
+    if (!loaded.bridgeUrl || loaded.bridgeUrl === "") {
+      loaded.connectionMode = "local"
+    }
     root.uiSettings = loaded
   }
   function showBalance() { return settingBool("balanceVisible", true) }

@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Relay for the Echo usage bridge (http://192.168.2.41:8643).
+"""Relay for the Echo usage bridge. Fetches usage data from a Hermes agent
+and writes it to stats.json for the echo.model widget, and to the
+built-in Omarchy Agents tab.
 
-Fork of sradetzky/omarchy-hermes-openrouter collect.py, rewritten to pull
-Echo's data from the REMOTE bridge instead of a local Hermes install:
-
-  $XDG_STATE_HOME/echo-model/stats.json                 -> what Widget.qml shows
-  $XDG_STATE_HOME/omarchy/agents/usage/hermes.json      -> built-in Agents tab
-
-Never holds API keys. Model switching is done by the user-side `echo-model`
-script (installed on this box), which carries the switch token; this relay is
-read-only against the bridge.
+The bridge URL is read from the widget's settings in shell.json, or
+falls back to the ECHO_BRIDGE_BASE environment variable, or to
+http://localhost:8643.
 """
 import json
 import os
@@ -21,7 +17,7 @@ STATE_ROOT = os.environ.get("XDG_STATE_HOME", os.path.join(HOME, ".local", "stat
 OUT_DIR = os.path.join(STATE_ROOT, "echo-model")
 OUT = os.path.join(OUT_DIR, "stats.json")
 AGENTS_USAGE = os.path.join(STATE_ROOT, "omarchy", "agents", "usage")
-BRIDGE = os.environ.get("ECHO_BRIDGE_BASE", "http://192.168.2.41:8643")
+BRIDGE = os.environ.get("ECHO_BRIDGE_BASE", "http://localhost:8643")
 TIMEOUT = 10
 
 

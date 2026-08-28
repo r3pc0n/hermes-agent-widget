@@ -26,8 +26,8 @@
     "defaultSection": "right",
     "defaults": {
       "refreshIntervalSec": 300,
-      "connectionMode": "remote",
-      "bridgeUrl": "http://192.168.2.41:8643",
+      "connectionMode": "local",
+      "bridgeUrl": "",
       "balanceVisible": true,
       "tokensByDayVisible": true,
       "modelUsageVisible": true,
