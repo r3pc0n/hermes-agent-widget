@@ -35,6 +35,9 @@ Panel {
   property string prevModel: ""
   property bool settingsVisible: false
   property var uiSettings: ({})
+  property bool chatActive: false
+  property var chatMessages: []
+  property bool chatBusy: false
 
   readonly property var api: stats && stats.api ? stats.api : null
   readonly property var usage: stats && stats.usage ? stats.usage : null
@@ -278,7 +281,7 @@ Panel {
     return m ? m[1] + ":" + m[2] : ""
   }
 
-  function fetchJson(url, onSuccess, onError) {
+  function fetchJson(url, onSuccess, onError, method, body) {
     var req = new XMLHttpRequest()
     var finished = false
     function fail() {
@@ -300,9 +303,33 @@ Panel {
     req.onerror = fail
     req.ontimeout = fail
     try {
-      req.open("GET", url)
-      req.send()
+      req.open(method || "GET", url)
+      if (body !== undefined) req.setRequestHeader("Content-Type", "application/json")
+      req.send(body === undefined ? null : body)
     } catch (e) { fail() }
+  }
+
+  // The bridge needs a /chat endpoint to proxy this request to Hermes.
+  // Until then, the normal 404 path is shown as an assistant error message.
+  function sendChatMessage(text) {
+    var message = String(text || "").trim()
+    if (!message || root.chatBusy) return
+    var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+    root.chatMessages = root.chatMessages.concat([{ role: "user", text: message }])
+    root.chatBusy = true
+    fetchJson(url + "/chat", function(resp) {
+      root.chatMessages = root.chatMessages.concat([{
+        role: "assistant",
+        text: resp && resp.response ? String(resp.response) : "(no response from agent)"
+      }])
+      root.chatBusy = false
+    }, function() {
+      root.chatMessages = root.chatMessages.concat([{
+        role: "assistant",
+        text: "(chat unavailable — bridge /chat is not implemented yet)"
+      }])
+      root.chatBusy = false
+    }, "POST", JSON.stringify({ message: message }))
   }
 
   function money(v) {
@@ -613,7 +640,11 @@ Panel {
     }
     active: root.alarming
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) { var u = root.providerUrl(); if (u && root.bar) root.bar.run("xdg-open " + u) }
+      if (buttonCode === Qt.RightButton) {
+        root.settingsVisible = false
+        root.chatActive = true
+        root.open()
+      }
       else if (buttonCode === Qt.MiddleButton) root.fetchFromBridge()
       else if (root.settingsVisible) root.settingsVisible = false
       else root.toggle()
@@ -639,6 +670,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       visible: true
+      blocked: root.chatActive && chatInput.activeFocus
 
       onMoveRequested: function(dx, dy) {
         if (dx !== 0) { root.cursorActive = true; root.selectCursor(root.modelCursor + dx) }
@@ -664,6 +696,7 @@ Panel {
       Flickable {
         id: panelFlick
         anchors.fill: parent
+        visible: !root.chatActive
         contentWidth: width
         contentHeight: contentColumn.implicitHeight
         clip: true
@@ -684,6 +717,14 @@ Panel {
             meta: root.heroMeta()
             foreground: root.foreground
             fontFamily: root.fontFamily
+
+            // Open the configured Hermes dashboard from the provider label.
+            TapHandler {
+              onTapped: {
+                var u = root.providerUrl()
+                if (u && root.bar) root.bar.run("xdg-open " + u)
+              }
+            }
 
             iconComponent: Component {
               Item {
@@ -1079,6 +1120,133 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
+          }
+        }
+      }
+
+      // Quick chat is a temporary second page in the same card. The bridge
+      // /chat endpoint still needs to be implemented to proxy to Hermes.
+      Item {
+        id: chatView
+        anchors.fill: parent
+        visible: root.chatActive
+
+        Text {
+          id: chatBack
+          anchors.left: parent.left
+          anchors.top: parent.top
+          text: "← Chat with Hermes"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          TapHandler { onTapped: root.chatActive = false }
+        }
+
+        Text {
+          anchors.right: parent.right
+          anchors.top: parent.top
+          text: "⌂"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          TapHandler {
+            onTapped: if (root.bar) root.bar.run("xdg-terminal-exec")
+          }
+        }
+
+        ScrollView {
+          id: chatScroll
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: chatBack.bottom
+          anchors.bottom: chatInputBar.top
+          anchors.topMargin: Style.space(12)
+          anchors.bottomMargin: Style.space(8)
+          clip: true
+          ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
+          Column {
+            width: chatScroll.width
+            spacing: Style.space(8)
+
+            Repeater {
+              model: root.chatMessages
+              delegate: Text {
+                required property var modelData
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: (modelData.role === "user" ? "You: " : "Echo: ") + modelData.text
+                color: modelData.role === "user" ? root.foreground : root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            Text {
+              visible: root.chatBusy
+              text: "Echo is thinking…"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+        }
+
+        Rectangle {
+          id: chatInputBar
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          height: Style.space(34)
+          color: root.alpha(root.foreground, 0.06)
+          border.width: 1
+          border.color: root.alpha(root.foreground, 0.22)
+          radius: Style.cornerRadius
+
+          TextInput {
+            id: chatInput
+            anchors.left: parent.left
+            anchors.right: chatSend.left
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(4)
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            activeFocusOnPress: true
+            enabled: !root.chatBusy
+            clip: true
+            onAccepted: {
+              root.sendChatMessage(text)
+              text = ""
+            }
+          }
+
+          Text {
+            anchors.left: chatInput.left
+            anchors.verticalCenter: chatInput.verticalCenter
+            visible: !chatInput.text && !chatInput.activeFocus
+            text: "Type a message…"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            id: chatSend
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "→"
+            color: root.chatBusy ? root.dim : root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            TapHandler {
+              onTapped: {
+                root.sendChatMessage(chatInput.text)
+                chatInput.text = ""
+              }
+            }
           }
         }
       }
