@@ -1130,6 +1130,7 @@ Panel {
         id: chatView
         anchors.fill: parent
         visible: root.chatActive
+        onVisibleChanged: if (visible) chatInput.forceActiveFocus()
 
         Text {
           id: chatBack
@@ -1215,6 +1216,7 @@ Panel {
             font.pixelSize: Style.font.caption
             activeFocusOnPress: true
             enabled: !root.chatBusy
+            focus: root.chatActive
             clip: true
             onAccepted: {
               root.sendChatMessage(text)
