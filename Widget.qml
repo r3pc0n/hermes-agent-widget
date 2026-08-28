@@ -453,8 +453,8 @@ Panel {
         Image {
           id: iconImg
           anchors.centerIn: parent
-          width: 12
-          height: 12
+          width: 10
+          height: 10
           source: Qt.resolvedUrl("assets/hermes-icon.png")
           sourceSize: Qt.size(128, 128)
           fillMode: Image.PreserveAspectFit
