@@ -17,14 +17,16 @@ BRIDGE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/echo-bridge"
 echo "==> Creating bridge directory: $BRIDGE_DIR"
 mkdir -p "$BRIDGE_DIR"
 
-echo "==> Cloning widget repo (bridge.py only)..."
+echo "==> Cloning widget repo..."
 if [ -d "$BRIDGE_DIR/.git" ]; then
   cd "$BRIDGE_DIR" && git pull --ff-only origin main
 else
-  git clone --depth 1 --filter=blob:none --sparse "$REPO" "$BRIDGE_DIR"
+  git clone --depth 1 "$REPO" "$BRIDGE_DIR"
   cd "$BRIDGE_DIR"
-  git sparse-checkout set bridge.py
 fi
+
+echo "==> Creating state directory for the bridge..."
+mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/echo-model"
 
 echo "==> Setting up systemd user service..."
 SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
