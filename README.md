@@ -1,62 +1,91 @@
 # Echo (omarchy bar widget)
 
-A Quickshell bar widget for Omarchy that shows **Echo's** usage, the
-**DeepSeek balance**, and a **model switcher** — all fed remotely from the
-Echo usage bridge on `192.168.2.41:8643`, with no local Hermes install needed.
+A Quickshell bar widget for Omarchy that shows **Echo's** usage, provider
+balance, and a **model switcher** — all fed from a Hermes agent via a local
+or remote usage bridge.
 
-Fork of [sradetzky/omarchy-hermes-openrouter](https://github.com/sradetzky/omarchy-hermes-openrouter)
-(MIT), retargeted from a local Hermes + OpenRouter setup to the remote Echo
-bridge.
-
-- **Balance** — DeepSeek credits remaining, with a meter showing the **used**
-  fraction of the topped-up balance (grows as credits are consumed) and a
-  warning under 10% remaining.
-- **Usage** — today / week / all-time tokens and API calls, tokens by day
-  (7 days), tokens by model (30 days), all from Echo's real `state.db`.
-- **Model switcher** — curated DeepSeek model list (flash, vision-exp, chat,
-  reasoner); arrows move the cursor, `Enter` applies. The switch POSTs to the
-  bridge, which rewrites `model.default` on the Echo VM — new Echo sessions
-  use it; running sessions keep theirs.
+- **Balance** — Credits remaining with a usage meter, showing your available
+  budget at a glance. Works with DeepSeek, OpenRouter, and OAuth providers.
+- **Usage** — Today / 7-day / 30-day tokens and estimated cost, tokens by day,
+  tokens by model, all from Hermes' real `state.db`.
+- **Model switcher** — Curated model list grouped by provider. One click to
+  switch. POSTs to the bridge, which rewrites `config.yaml` — new sessions use
+  the new model immediately.
+- **Dual mode** — Local (machine running Omarchy) or Remote (any reachable
+  server). Toggle in settings.
 
 ## Requirements
 
 - Omarchy (Quickshell) shell.
-- The Echo usage bridge reachable at `http://192.168.2.41:8643` (LAN).
-- The `echo-model` script installed at `~/.local/bin/echo-model` — it carries
-  the switch token and performs the POST. Install it with:
-  `curl -fsS http://192.168.2.41:8643/install/echo-model.sh -o ~/.local/bin/echo-model
-  && chmod 700 ~/.local/bin/echo-model`
+- Python 3 (shipped with all modern Linux distros).
+- A running Hermes agent on the target machine (for Local mode) or a reachable
+  server running the bridge (for Remote mode).
 
-## Install
+## Quick Install (Local mode)
 
 ```sh
-omarchy plugin add https://github.com/Echo-Wren/omarchy-echo-model.git --enable
+omarchy plugin add https://github.com/r3pc0n/hermes-agent-widget.git --enable --yes
+omarchy-restart-shell
 ```
 
-or clone and run `./install.sh`. The `E` icon lands in the right bar section.
+The widget immediately starts a local bridge process that reads Hermes' data
+directly. No extra setup needed.
+
+To move the icon to the right side of the bar:
+
+```sh
+omarchy plugin enable echo.model right
+```
+
+## Remote mode (connect to another machine)
+
+If your Hermes agent runs on a different machine (server, NAS, VPS), install
+the bridge there with one command:
+
+```sh
+bash <(curl -s https://raw.githubusercontent.com/r3pc0n/hermes-agent-widget/main/install-bridge.sh)
+```
+
+This sets up a systemd user service that runs the bridge on port 8643.
+The bridge reads `~/.hermes/state.db` and `~/.hermes/config.yaml` directly — no
+Python package dependencies beyond the standard library.
+
+Then in the widget settings:
+1. Click the hamburger menu `☰`
+2. Switch to **Remote**
+3. Enter the bridge URL: `http://<server-ip>:8643`
+
+### Using your Hermes agent to install the bridge
+
+Simply give your Hermes agent this prompt:
+
+> Install the Echo Usage Bridge on this machine so an Omarchy bar widget can
+> pull usage data from my Hermes agent. Run:
+>
+> ```sh
+> bash <(curl -s https://raw.githubusercontent.com/r3pc0n/hermes-agent-widget/main/install-bridge.sh)
+> ```
+>
+> Then confirm the bridge is running on port 8643.
 
 ## Usage
 
-- **Left click** — open/close the panel
+- **Left click** the Hermes icon — open/close the panel
 - **Middle click** — refresh now
-- **Right click** — open DeepSeek usage page
-- In the panel: `←`/`→` move the model cursor, `Enter` applies it,
+- **Gear icon** (or `☰` in settings) — toggle settings panel
+- In the panel: arrows move the model cursor, `Enter` applies it,
   `r` refreshes, `Esc`/`q` closes
 
-The panel refreshes on load, on open, and every `refreshIntervalSec`
-(default 300 s).
+## Provider & balance support
 
-## Data and permissions
+| Provider | Usage data | Balance tracking |
+|----------|-----------|------------------|
+| DeepSeek (direct) | ✅ From Hermes' DB | ✅ Via DeepSeek API key in `~/.hermes/.env` |
+| OpenRouter | ✅ From Hermes' DB | ✅ Via OpenRouter API key in `~/.hermes/.env` |
+| OpenAI Codex / OAuth | ✅ From Hermes' DB | ⚠ Shows "Connected · usage only" |
 
-- `collect.py` is a read-only relay: it fetches `/hermes.json` + `/models`
-  from the bridge and writes `~/.local/state/echo-model/stats.json` (the
-  panel) and `~/.local/state/omarchy/agents/usage/hermes.json` (the built-in
-  Agents tab — this makes a separate fetch timer unnecessary).
-- No API keys live in this plugin. The only authenticated action is the model
-  switch, done by the `echo-model` script (token is embedded in that script,
-  mode 0700).
-- The balance meter shows *used / topped-up* (high-water tracked by the
-  bridge); the built-in Agents tab's bar is *remaining / funded* by design.
+For OAuth/subscription providers, token usage and estimated costs still work —
+the widget just can't fetch a balance for that provider type.
 
 ## License
 
