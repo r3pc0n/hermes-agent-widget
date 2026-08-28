@@ -453,6 +453,7 @@ Panel {
         Image {
           id: iconImg
           anchors.centerIn: parent
+          anchors.verticalCenterOffset: -1
           width: 10
           height: 10
           source: Qt.resolvedUrl("assets/hermes-icon.png")
