@@ -1130,7 +1130,10 @@ Panel {
         id: chatView
         anchors.fill: parent
         visible: root.chatActive
-        onVisibleChanged: if (visible) chatInput.forceActiveFocus()
+        focus: root.chatActive
+        onVisibleChanged: {
+          if (visible) Qt.callLater(chatInput.forceActiveFocus)
+        }
 
         Text {
           id: chatBack
