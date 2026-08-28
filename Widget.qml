@@ -1117,7 +1117,9 @@ Panel {
             font.pixelSize: Style.font.bodySmall
             TapHandler {
               onTapped: {
-                var url = root.localMode() ? "http://192.168.2.41:8643" : root.bridgeUrl()
+                var current = root.bridgeUrl()
+                var fallback = "http://localhost:8643"
+                var url = current === "http://your-hermes:8643" ? fallback : current
                 root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
               }
             }
