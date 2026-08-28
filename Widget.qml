@@ -664,10 +664,9 @@ Panel {
 
                 Text {
                   anchors.centerIn: parent
-                  text: "⚙"
+                  text: "☰"
                   color: root.foreground
                   font.pixelSize: Style.font.title
-                  font.bold: true
                 }
 
                 // TapHandler bypasses Flickable/PanelKeyCatcher event interception
