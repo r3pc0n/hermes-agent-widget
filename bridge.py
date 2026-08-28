@@ -163,12 +163,18 @@ def dashboard_port(cfg=CFG):
             in_dash = True
             continue
         if in_dash:
-            if stripped and stripped[0] not in " \t":
+            # A line that starts at column 0 (no leading whitespace) ends the section
+            if line and line[0] not in " \t":
                 break
             m = re.match(r"^\s*port\s*:\s*(.+)$", line)
             if m:
+                val = m.group(1).strip().strip("'\"")
+                # Strip trailing comments (YAML allows "# comment" after a value)
+                hash_idx = val.find(" #")
+                if hash_idx >= 0:
+                    val = val[:hash_idx].strip()
                 try:
-                    port = int(m.group(1).strip().strip("'\"\""))
+                    port = int(val)
                 except ValueError:
                     pass
     return port
