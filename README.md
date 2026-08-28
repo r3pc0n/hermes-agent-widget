@@ -72,9 +72,29 @@ Simply give your Hermes agent this prompt:
 
 - **Left click** the Hermes icon — open/close the panel
 - **Middle click** — refresh now
-- **Gear icon** (or `☰` in settings) — toggle settings panel
+- **Hamburger `☰`** in the panel — open settings
 - In the panel: arrows move the model cursor, `Enter` applies it,
   `r` refreshes, `Esc`/`q` closes
+
+### Switching between Local and Remote
+
+Your widget defaults to **Local mode** — it connects to the bridge running
+on the same machine as Omarchy (auto-started by the widget itself).
+
+To switch to a remote Hermes agent:
+
+1. Open the widget panel (left-click the Hermes icon)
+2. Click `☰` to open settings
+3. Tap **Remote** — the bridge URL field becomes editable
+4. Enter the remote bridge URL, e.g. `http://192.168.1.50:8643`
+5. The widget immediately fetches data from that address
+
+To switch back to Local:
+1. Open settings (`☰`)
+2. Tap **Local** — the bridge URL reverts to `http://your-hermes:8643`
+3. The widget fetches from the local bridge on the next refresh
+
+The setting persists across shell restarts — you only set it once.
 
 ## Provider & balance support
 
