@@ -547,10 +547,11 @@ def build_record():
         }
         current = spent if spent_ascending else remaining
     else:
-        balance = openrouter_balance() if provider == "openrouter" else deepseek_balance()
+        # Unknown provider — show usage data without balance
+        balance = None
         days, today_s = {}, time.strftime("%Y-%m-%d", time.localtime())
-        spent_ascending = provider == "openrouter"
-        current = float(balance.get("spent", 0)) if spent_ascending else float(balance.get("remaining", 0))
+        spent_ascending = False
+        current = 0.0
 
     now = time.time()
     series = []
@@ -642,10 +643,14 @@ def build_record():
 
     status, auth = "", ""
     if balance is None:
-        if provider == "openrouter":
-            status, auth = "OpenRouter balance unavailable", "Set OPENROUTER_API_KEY in ~/.hermes/.env"
+        known = PROVIDER_CONFIGS.get(provider)
+        if known:
+            key = "OPENROUTER_API_KEY" if provider == "openrouter" else "DEEPSEEK_API_KEY"
+            status = f"{known['label']} balance unavailable"
+            auth = f"Set {key} in ~/.hermes/.env"
         else:
-            status, auth = "DeepSeek balance unavailable", "Set DEEPSEEK_API_KEY in ~/.hermes/.env"
+            status = "Connected"
+            auth = ""
 
     return {
         "schemaVersion": 1,
