@@ -655,7 +655,7 @@ def build_record():
     return {
         "schemaVersion": 1,
         "id": "hermes",
-        "name": "Echo · " + label,
+        "name": "Hermes · " + label,
         "updatedAt": iso_now(),
         "ready": True,
         "hasLocalStats": True,

@@ -6,7 +6,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// echo.model — Echo usage, DeepSeek balance, and a model switcher: one bar
+// echo.model — Hermes usage, balance, and a model switcher: one bar
 // icon and one panel. Data is fetched directly from the configured Hermes
 // bridge URL via QML HTTP requests.
 Panel {

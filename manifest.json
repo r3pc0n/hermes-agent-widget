@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "echo.model",
-  "name": "Echo",
+  "name": "Hermes model",
   "version": "1.0.0",
-  "author": "Echo (fork of hermes.openrouter by Sven Radetzky)",
+  "author": "Des Octavis (based on omarchy-hermes-openrouter by Sven Radetzky)",
   "license": "MIT",
-  "description": "Echo usage, DeepSeek balance, and a model switcher — remote via the Echo usage bridge (192.168.2.41:8643).",
+  "description": "Hermes agent usage, provider balance, and a model switcher — local or remote via the Hermes usage bridge.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,14 +13,15 @@
     "barWidget": "Widget.qml"
   },
   "barWidget": {
-    "displayName": "Echo",
-    "description": "Echo usage, DeepSeek balance, and a model selector fed by the remote usage bridge.",
+    "displayName": "Agent usage",
+    "description": "Hermes usage, balance, and model selector — local or remote.",
     "category": "AI",
     "aliases": [
-      "echo",
+      "hermes",
       "deepseek",
       "model",
-      "usage"
+      "usage",
+      "agent"
     ],
     "allowMultiple": false,
     "defaultSection": "right",

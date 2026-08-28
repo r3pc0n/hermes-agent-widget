@@ -34,7 +34,7 @@ mkdir -p "$SERVICE_DIR"
 
 cat > "$SERVICE_DIR/echo-bridge.service" << 'SYSTEMD'
 [Unit]
-Description=Echo Usage Bridge — serves Hermes usage data on port 8643
+Description=Hermes Usage Bridge — serves Hermes usage data on port 8643
 After=network.target
 Documentation=https://github.com/r3pc0n/hermes-agent-widget
 
