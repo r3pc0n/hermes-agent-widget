@@ -23,6 +23,7 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property url iconSource: Qt.resolvedUrl("assets/hermes-icon.png")
+  readonly property string bridgeScript: String(Qt.resolvedUrl("bridge.py")).replace(/^file:\/\//, "")
 
   property var stats: null
   property bool refreshing: false
@@ -492,12 +493,33 @@ Panel {
     }
   }
 
+  // Auto-start the local usage bridge so the widget works immediately
+  // in Local mode without a separate systemd service. The bridge reads
+  // Hermes' state.db and config.yaml directly, and serves /hermes.json
+  // on port 8643. If the port is already taken (another instance running),
+  // the bridge exits silently — the widget connects to the existing one.
+  Process {
+    id: bridgeProcess
+    command: ["python3", root.bridgeScript]
+    running: true
+  }
+
   Timer {
     id: refreshTimer
     interval: Math.max(30, Number(root.setting("refreshIntervalSec", 300))) * 1000
     running: true
     repeat: true
     onTriggered: root.fetchFromBridge()
+  }
+
+  // Retry once after 1s in case the bridge process hasn't started yet
+  Timer {
+    id: startupRetry
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      if (!root.stats || !root.api || !root.api.ok) root.fetchFromBridge()
+    }
   }
 
   onStatsChanged: {
@@ -515,7 +537,10 @@ Panel {
 
   onExpandedProviderChanged: root.clampCursor()
 
-  Component.onCompleted: root.fetchFromBridge()
+  Component.onCompleted: {
+    root.fetchFromBridge()
+    startupRetry.start()
+  }
   onOpenedChanged: {
     if (root.opened) {
       root.loadSettings()
