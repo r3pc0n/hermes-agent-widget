@@ -731,42 +731,60 @@ def build_record():
 
 
 class _ChatClient:
-    """Stateless chat proxy via ``hermes chat -q``.
+    """Session-aware chat proxy via ``hermes chat -q -Q --resume``.
 
-    ``-q`` mode spawns a fresh process per message. Hermes SIGABRTs on
-    shutdown (background threads race Python finalization), but the response
-    is written to stdout before the crash, so it's invisible to the caller.
+    ``-Q`` emits a session ID on the first call. Subsequent calls resume that
+    session so the conversation remains continuous; ``new_session`` clears
+    the tracked ID and starts the next request in a fresh context.
     """
 
     _BIN = os.path.join(HOME, ".hermes", "hermes-agent", "venv", "bin", "hermes")
 
-    def query(self, message: str) -> str | None:
+    def __init__(self):
+        self._session_id: str | None = None
+
+    def query(self, message: str) -> tuple[str, str] | None:
+        """Return ``(response_text, session_id)`` or ``None``."""
         if not message or not os.path.exists(self._BIN):
             return None
         try:
+            cmd = [self._BIN, "chat", "-q", message, "-Q"]
+            if self._session_id:
+                cmd += ["--resume", self._session_id]
             proc = subprocess.run(
-                [self._BIN, "chat", "-q", message],
-                capture_output=True,
-                text=True,
-                timeout=60,
+                cmd,
+                capture_output=True, text=True, timeout=120,
                 cwd="/",
                 env={**os.environ, "TERM": "dumb"},
             )
             out = (proc.stdout or "") + (proc.stderr or "")
+            sid = None
+            for line in out.splitlines():
+                match = re.match(r"^session_id:\s*(\S+)", line.strip())
+                if match:
+                    sid = match.group(1)
+                    self._session_id = sid
+                    break
             m = re.search(r"╭[─╴][^╮]+╮\n(.+?)\n╰", out, re.DOTALL)
             if m:
-                return m.group(1).strip()
-            for prefix in ("Query:", "Initializing agent", "Resume this session"):
+                return m.group(1).strip(), sid or ""
+            for prefix in ("Query:", "Initializing agent", "Resume this session",
+                           "session_id:", "↻ Resumed session"):
                 lines = [line for line in out.splitlines() if prefix not in line]
                 out = "\n".join(lines)
-            return out.strip()[:2000] or None
+            cleaned = out.strip()[:2000]
+            return (cleaned, sid or "") if cleaned else None
         except subprocess.TimeoutExpired:
             return None
         except OSError:
             return None
 
     def new_session(self):
-        pass  # Stateless — each query is already a fresh context.
+        self._session_id = None
+
+    @property
+    def session_id(self) -> str | None:
+        return self._session_id
 
     def close(self):
         pass
@@ -810,6 +828,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/health":
             model_id, provider = current_model()
             return self._json({"ok": True, "model": model_id, "provider": provider})
+        if path == "/session":
+            return self._json({"session_id": _CHAT.session_id or ""})
         return self._json({
             "service": "echo-usage-bridge",
             "endpoints": ["/hermes.json", "/models", "/health"],
@@ -827,14 +847,18 @@ class Handler(BaseHTTPRequestHandler):
             message = str(body.get("message", "")).strip()
             if not message:
                 return self._json({"error": "missing message"}, 400)
-            response = _CHAT.query(message)
-            if response:
-                return self._json({"response": response})
+            result = _CHAT.query(message)
+            if result:
+                text, sid = result
+                return self._json({"response": text, "session_id": sid})
             return self._json({"error": "Hermes agent not reachable"}, 503)
 
         if path == "/chat/new":
             _CHAT.new_session()
             return self._json({"ok": True, "session": "new"})
+
+        if path == "/session":
+            return self._json({"session_id": _CHAT.session_id or ""})
 
         if path != "/model":
             return self._json({"error": "not found"}, 404)

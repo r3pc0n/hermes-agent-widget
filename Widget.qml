@@ -1167,35 +1167,54 @@ Panel {
         TapHandler { onTapped: root.chatActive = false }
       }
 
-      Text {
+      Row {
         anchors.right: parent.right
-        anchors.rightMargin: Style.space(48)
         anchors.verticalCenter: parent.verticalCenter
-        text: "⌂"
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        TapHandler {
-          onTapped: if (root.bar) root.bar.run("xdg-terminal-exec")
-        }
-      }
+        spacing: Style.space(4)
 
-      Text {
-        anchors.right: parent.right
-        anchors.rightMargin: Style.space(8)
-        anchors.verticalCenter: parent.verticalCenter
-        text: "✎"
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        ToolTip.visible: newSessionHover.hovered
-        ToolTip.text: "New chat session"
-        HoverHandler { id: newSessionHover }
-        TapHandler {
-          onTapped: {
-            var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
-            root.chatMessages = []
-            root.fetchJson(url + "/chat/new", function(resp) {}, function() {}, "POST", "{}")
+        // Resume in terminal (or copy the remote session ID).
+        Text {
+          text: ">_"
+          color: root.dim
+          font.family: "monospace"
+          font.pixelSize: Style.font.body
+          ToolTip.visible: terminalHover.hovered
+          ToolTip.text: root.localMode()
+            ? "Open this conversation in a terminal"
+            : "Copy session ID to clipboard"
+          HoverHandler { id: terminalHover }
+          TapHandler {
+            onTapped: {
+              var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+              root.fetchJson(url + "/session", function(resp) {
+                var sid = resp.session_id
+                if (!sid) return
+                if (root.localMode()) {
+                  if (root.bar) root.bar.run("xdg-terminal-exec hermes chat --resume " + sid)
+                } else {
+                  if (root.bar) root.bar.run("wl-copy " + sid)
+                  root.chatBusy = false
+                }
+              }, function() {}, "GET")
+            }
+          }
+        }
+
+        // New session.
+        Text {
+          text: "✎"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          ToolTip.visible: newSessionHover.hovered
+          ToolTip.text: "New chat session"
+          HoverHandler { id: newSessionHover }
+          TapHandler {
+            onTapped: {
+              var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+              root.chatMessages = []
+              root.fetchJson(url + "/chat/new", function(resp) {}, function() {}, "POST", "{}")
+            }
           }
         }
       }
