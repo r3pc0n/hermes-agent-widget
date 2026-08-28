@@ -717,14 +717,6 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
 
-            // Open the configured Hermes dashboard from the provider label.
-            TapHandler {
-              onTapped: {
-                var u = root.providerUrl()
-                if (u && root.bar) root.bar.run("xdg-open " + u)
-              }
-            }
-
             iconComponent: Component {
               Item {
                 width: Style.font.display
@@ -737,6 +729,14 @@ Panel {
                   sourceSize: Qt.size(128, 128)
                   fillMode: Image.PreserveAspectFit
                   smooth: true
+                }
+
+                // Only the logo opens the dashboard — not the whole hero bar.
+                TapHandler {
+                  onTapped: {
+                    var u = root.providerUrl()
+                    if (u && root.bar) root.bar.run("xdg-open " + u)
+                  }
                 }
               }
             }
@@ -1251,7 +1251,7 @@ Panel {
 
         Text {
           visible: root.chatBusy
-          text: "Echo is thinking…"
+          text: "Hermes is thinking…"
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
