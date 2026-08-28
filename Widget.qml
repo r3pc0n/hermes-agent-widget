@@ -52,7 +52,7 @@ Panel {
 
   readonly property string currentModel: hermes ? String(hermes.model || "") : ""
   readonly property string updatedAt: stats ? String(stats.updated || "") : ""
-  readonly property real remaining: api && api.ok && isFinite(api.remaining) ? api.remaining : -1
+  readonly property real remaining: api && api.balanceAvailable === true && isFinite(api.remaining) ? api.remaining : -1
   readonly property real funded: api && api.ok && isFinite(api.total) ? api.total : 0
   readonly property real spent: api && api.ok && isFinite(api.used) ? api.used : 0
   // The meter shows the USED fraction of the topped-up balance (grows as
@@ -216,6 +216,7 @@ Panel {
   function heroMeta() {
     var label = root.providerLabel()
     if (!api || !api.ok) return label + " · " + (api && api.configured ? "bridge unreachable" : "no data")
+    if (api.balanceAvailable === false || remaining < 0) return label + " · Connected"
     return label + " · " + fmtMoney(remaining) + " remaining"
   }
 
@@ -303,7 +304,8 @@ Panel {
     var rec = hermesData || ({})
     var modelResponse = modelsData || ({})
     var ok = Object.keys(rec).length > 0
-    var bal = rec.balance || ({})
+    var hasBalance = rec.balance !== null && rec.balance !== undefined
+    var bal = hasBalance ? rec.balance : ({})
     var byModel = []
     var modelUsage = rec.modelUsage || ({})
     for (var model in modelUsage) {
@@ -338,6 +340,7 @@ Panel {
       api: {
         configured: true,
         ok: ok,
+        balanceAvailable: hasBalance,
         total: money(bal.funded),
         used: money(bal.spent),
         remaining: money(bal.remaining),
@@ -769,7 +772,9 @@ Panel {
 
               Text {
                 id: balanceLabel
-                text: "Credits remaining"
+                text: root.api && root.api.balanceAvailable === false
+                  ? root.providerLabel() + " subscription"
+                  : "Credits remaining"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -779,17 +784,22 @@ Panel {
 
               Text {
                 id: balanceValue
-                text: root.fmtMoney(root.remaining)
-                color: root.alarming ? urgent : root.foreground
+                text: root.api && root.api.balanceAvailable === false
+                  ? "usage-only"
+                  : root.fmtMoney(root.remaining)
+                color: root.api && root.api.balanceAvailable === false
+                  ? root.dim
+                  : (root.alarming ? urgent : root.foreground)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
-                font.bold: true
+                font.bold: !(root.api && root.api.balanceAvailable === false)
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
               }
             }
 
             Meter {
+              visible: root.api && root.api.balanceAvailable !== false
               width: parent.width
               value: root.ratio
               alarming: root.alarming
