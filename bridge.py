@@ -146,15 +146,14 @@ def current_model():
     return model, provider
 
 
-def dashboard_url(cfg=CFG):
-    """Read the Hermes dashboard URL from config.yaml."""
+def dashboard_port(cfg=CFG):
+    """Read the Hermes dashboard port from config.yaml."""
     try:
         with open(cfg) as fh:
             lines = fh.read().splitlines()
     except OSError:
-        return "http://localhost:9119"
+        return 9119
     port = 9119
-    host = "127.0.0.1"
     in_dash = False
     for line in lines:
         stripped = line.strip()
@@ -166,18 +165,13 @@ def dashboard_url(cfg=CFG):
         if in_dash:
             if stripped and stripped[0] not in " \t":
                 break
-            m = re.match(r"^\s*(port|host)\s*:\s*(.+)$", line)
+            m = re.match(r"^\s*port\s*:\s*(.+)$", line)
             if m:
-                key, val = m.group(1), m.group(2).strip().strip("'\"")
-                if key == "port":
-                    try:
-                        port = int(val)
-                    except ValueError:
-                        pass
-                elif key == "host":
-                    host = val
-    host = "127.0.0.1" if host == "0.0.0.0" else host
-    return f"http://{host}:{port}"
+                try:
+                    port = int(m.group(1).strip().strip("'\"\""))
+                except ValueError:
+                    pass
+    return port
 
 
 def set_model(model_id, cfg=CFG):
@@ -709,7 +703,7 @@ def build_record():
         "modelUsage": usage_by_model,
         "limits": limits,
         "balance": balance,
-        "dashboardUrl": dashboard_url(),
+        "dashboardPort": dashboard_port(),
         "echo": {
             "model": model_id,
             "provider": provider,
