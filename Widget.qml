@@ -112,7 +112,9 @@ Panel {
   }
 
   function bridgeUrl() {
-    var val = settingValue("bridgeUrl", "")
+    // Local mode always uses localhost.  Remote mode stores its own URL.
+    if (root.localMode()) return "http://localhost:8643"
+    var val = settingValue("remoteBridgeUrl", "")
     return val === "" ? "http://your-hermes:8643" : String(val)
   }
 
@@ -129,7 +131,6 @@ Panel {
     var loaded = ({})
     var source = root.settings || ({})
     for (var key in source) if (key !== "id") loaded[key] = source[key]
-    if (!loaded.bridgeUrl || loaded.bridgeUrl === "") loaded.connectionMode = "local"
     root.uiSettings = loaded
   }
   function showBalance() { return settingBool("balanceVisible", true) }
@@ -1440,7 +1441,7 @@ Panel {
             font.pixelSize: Style.font.bodySmall
             TapHandler {
               onTapped: {
-                root.saveSettings({ connectionMode: "local", bridgeUrl: "http://localhost:8643" })
+                root.saveSetting("connectionMode", "local")
               }
             }
           }
@@ -1452,10 +1453,7 @@ Panel {
             font.pixelSize: Style.font.bodySmall
             TapHandler {
               onTapped: {
-                var current = root.bridgeUrl()
-                var fallback = "http://localhost:8643"
-                var url = current === "http://your-hermes:8643" ? fallback : current
-                root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
+                root.saveSetting("connectionMode", "remote")
               }
             }
           }
@@ -1543,7 +1541,7 @@ Panel {
               }
               verticalAlignment: TextInput.AlignVCenter
               onEditingFinished: {
-                if (!root.localMode() && text !== "") root.saveSetting("bridgeUrl", text)
+                if (!root.localMode() && text !== "") root.saveSetting("remoteBridgeUrl", text)
               }
               TapHandler {
                 onTapped: {

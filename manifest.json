@@ -28,7 +28,7 @@
     "defaults": {
       "refreshIntervalSec": 300,
       "connectionMode": "local",
-      "bridgeUrl": "",
+      "remoteBridgeUrl": "",
       "localToken": "",
       "remoteToken": "",
       "balanceVisible": true,
