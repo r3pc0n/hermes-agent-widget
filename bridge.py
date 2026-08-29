@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-"""Hermes Usage Bridge — serves Hermes agent usage + provider balance to the
-echo.model Omarchy bar widget.
+"""Hermes Agent Widget Bridge — serves usage and provider balances to the
+Hermes Agent Omarchy bar widget.
 
 GET /hermes.json  -> usage record (balance, model usage, daily breakdown)
 GET /models       -> available models + current model
 GET /health       -> {"ok": true, "model": ..., "provider": ...}
-POST /model       -> switch model (requires ECHO_MODEL_TOKEN)
+POST /model       -> switch model
 GET /             -> endpoint index
+
+All endpoints require HERMES_WIDGET_TOKEN when the bridge is network-reachable.
+Loopback-only Local mode does not require a token.
 
 Reads:
   ~/.hermes/state.db    (session_model_usage, read-only)
   ~/.hermes/config.yaml (current model)
 
-State files (balance tracking, OR pricing cache):
-  ~/.local/state/echo-model/
+State files (balance tracking, OpenRouter pricing cache):
+  ~/.local/state/hermes-agent-widget/
 
-Auto-started by the echo.model Omarchy plugin via QML Process.
+Auto-started by the Hermes Agent Widget via QML Process.
 """
 
+import hmac
 import json
 import os
 import re
@@ -29,14 +33,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOME = os.path.expanduser("~")
 STATE_ROOT = os.environ.get("XDG_STATE_HOME", os.path.join(HOME, ".local", "state"))
-STATE_DIR = os.path.join(STATE_ROOT, "echo-model")
+STATE_DIR = os.path.join(STATE_ROOT, "hermes-agent-widget")
 DB = os.path.join(HOME, ".hermes", "state.db")
 CFG = os.path.join(HOME, ".hermes", "config.yaml")
 DEEPSEEK_SQL = "billing_base_url LIKE '%deepseek.com%'"
 ALL_SQL = "1=1"
-TOKEN = os.environ.get("ECHO_USAGE_TOKEN", "")
-MODEL_TOKEN = os.environ.get("ECHO_MODEL_TOKEN", "")
-PORT = int(os.environ.get("ECHO_USAGE_PORT", "8643"))
+# ECHO_USAGE_* remains accepted for a transition from pre-marketplace builds.
+HOST = os.environ.get(
+    "HERMES_WIDGET_HOST", os.environ.get("ECHO_USAGE_HOST", "127.0.0.1")
+).strip() or "127.0.0.1"
+TOKEN = os.environ.get("HERMES_WIDGET_TOKEN", os.environ.get("ECHO_USAGE_TOKEN", ""))
+PORT = int(os.environ.get("HERMES_WIDGET_PORT", os.environ.get("ECHO_USAGE_PORT", "8643")))
+MAX_REQUEST_BYTES = 64 * 1024
+
+
+def validate_bind_security(host, token):
+    """Refuse network-reachable listeners that have no access token."""
+    if host not in {"127.0.0.1", "localhost", "::1"} and not token:
+        raise ValueError("Refusing non-loopback bridge bind without HERMES_WIDGET_TOKEN")
 
 # Curated switchable models (same provider/base_url — DeepSeek family).
 # Cross-provider switching (qwen via OpenRouter etc.) is a later extension.
@@ -687,6 +701,22 @@ def build_record():
             status = "Connected"
             auth = ""
 
+    agent_stats = {
+        "model": model_id,
+        "provider": provider,
+        "tokensAllTime": totals["inp"] + totals["out"] + totals["cache"],
+        "costToday": round(by_day[-1]["cost"], 4) if by_day else 0.0,
+        "costWeek": round(sum(d["cost"] for d in by_day), 4),
+        "tokens30": tokens30,
+        "cost30": cost30,
+        "exactDays30": exact_days30,
+        "costAllTime": round(float(balance.get("spent", est_all)), 4)
+        if balance
+        else round(est_all, 4),
+        "costEstimatedTotal": round(est_all, 4),
+        "updated": iso_now(),
+    }
+
     return {
         "schemaVersion": 1,
         "id": "hermes",
@@ -711,19 +741,9 @@ def build_record():
         "limits": limits,
         "balance": balance,
         "dashboardPort": dashboard_port(),
-        "echo": {
-            "model": model_id,
-            "provider": provider,
-            "tokensAllTime": totals["inp"] + totals["out"] + totals["cache"],
-            "costToday": round(by_day[-1]["cost"], 4) if by_day else 0.0,
-            "costWeek": round(sum(d["cost"] for d in by_day), 4),
-            "tokens30": tokens30,
-            "cost30": cost30,
-            "exactDays30": exact_days30,
-            "costAllTime": round(float(balance.get("spent", est_all)), 4) if balance else round(est_all, 4),
-            "costEstimatedTotal": round(est_all, 4),
-            "updated": iso_now(),
-        },
+        "agent": agent_stats,
+        # Compatibility for widgets installed before the marketplace rename.
+        "echo": agent_stats,
     }
 
 
@@ -801,8 +821,13 @@ class Handler(BaseHTTPRequestHandler):
         if not TOKEN:
             return True
         hdr = self.headers.get("Authorization", "")
-        alt = self.headers.get("X-Echo-Token", "")
-        return hdr == f"Bearer {TOKEN}" or alt == TOKEN
+        alt = self.headers.get("X-Hermes-Widget-Token", "")
+        legacy_alt = self.headers.get("X-Echo-Token", "")
+        return (
+            hmac.compare_digest(hdr, f"Bearer {TOKEN}")
+            or hmac.compare_digest(alt, TOKEN)
+            or hmac.compare_digest(legacy_alt, TOKEN)
+        )
 
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -831,14 +856,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/session":
             return self._json({"session_id": _CHAT.session_id or ""})
         return self._json({
-            "service": "echo-usage-bridge",
+            "service": "hermes-agent-widget-bridge",
             "endpoints": ["/hermes.json", "/models", "/health"],
         })
 
     def do_POST(self):
+        if not self._authed():
+            return self._json({"error": "unauthorized"}, 401)
         path = self.path.split("?")[0]
         try:
             length = int(self.headers.get("Content-Length", 0))
+            if length < 0 or length > MAX_REQUEST_BYTES:
+                return self._json({"error": "request body too large"}, 413)
             body = json.loads(self.rfile.read(length).decode()) if length else {}
         except Exception:
             return self._json({"error": "bad json"}, 400)
@@ -862,12 +891,6 @@ class Handler(BaseHTTPRequestHandler):
 
         if path != "/model":
             return self._json({"error": "not found"}, 404)
-        if not MODEL_TOKEN:
-            return self._json({"error": "model switching disabled (ECHO_MODEL_TOKEN unset)"}, 403)
-        hdr = self.headers.get("Authorization", "")
-        alt = self.headers.get("X-Echo-Token", "")
-        if hdr != f"Bearer {MODEL_TOKEN}" and alt != MODEL_TOKEN:
-            return self._json({"error": "unauthorized"}, 401)
         model_id = str(body.get("model", "")).strip()
         if not model_id:
             return self._json({"error": "missing model"}, 400)
@@ -882,9 +905,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    try:
+        validate_bind_security(HOST, TOKEN)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     os.makedirs(STATE_DIR, exist_ok=True)
     try:
-        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
     except OSError:
         # Port already in use — another bridge instance is running, or
         # the user has a standalone bridge. Nothing to do.

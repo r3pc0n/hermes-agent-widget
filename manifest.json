@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "echo.model",
-  "name": "Hermes model",
-  "version": "1.0.0",
-  "author": "Des Octavis (based on omarchy-hermes-openrouter by Sven Radetzky)",
+  "id": "io.github.r3pc0n.hermes-agent-widget",
+  "name": "Hermes Agent Widget",
+  "version": "1.1.0",
+  "author": "Youri Jan Olie (based on omarchy-hermes-openrouter by Sven Radetzky)",
   "license": "MIT",
-  "description": "Hermes agent usage, provider balance, and a model switcher — local or remote via the Hermes usage bridge.",
+  "description": "Hermes Agent usage, balances, model switching, and quick chat for local or remote agents.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,8 @@
     "barWidget": "Widget.qml"
   },
   "barWidget": {
-    "displayName": "Agent usage",
-    "description": "Hermes usage, balance, and model selector — local or remote.",
+    "displayName": "Hermes Agent",
+    "description": "Usage, balances, model switching, and quick chat for local or remote Hermes Agents.",
     "category": "AI",
     "aliases": [
       "hermes",
@@ -29,6 +29,7 @@
       "refreshIntervalSec": 300,
       "connectionMode": "local",
       "bridgeUrl": "",
+      "bridgeToken": "",
       "balanceVisible": true,
       "tokensByDayVisible": true,
       "modelUsageVisible": true,

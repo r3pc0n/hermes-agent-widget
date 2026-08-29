@@ -13,6 +13,13 @@ terminal session resume.
 > ability to connect to a Hermes Agent running either locally on your Omarchy
 > machine or remotely on another computer, server or VPS.
 
+## Requirements
+
+- Omarchy Quattro with the Quickshell-based Omarchy shell.
+- Hermes Agent installed for the same user as the widget or Remote bridge.
+- Python 3; the bridge uses only the Python standard library.
+- For optional Remote mode: a systemd user session and a trusted LAN or VPN.
+
 ## Features
 
 ### Usage panel
@@ -100,12 +107,12 @@ The chat panel stays in sync with Hermes' session system:
 connects to `localhost:8643`. Use it when Hermes runs on the same machine as
 your desktop.
 
-**Remote mode** points the widget to a bridge on another machine, such as a
-server or VPS. Use it for a central Hermes instance serving one or more
-clients.
+**Remote mode** points the widget to an authenticated bridge on another
+machine, such as a server or VPS. Use it for a central Hermes instance serving
+one or more clients over a trusted LAN or VPN.
 
-Switch modes in the settings panel. The bridge URL field appears when Remote
-mode is enabled.
+Switch modes in the settings panel. The bridge URL and access-token fields
+appear when Remote mode is enabled.
 
 <p align="center">
   <img src="assets/settings.png" alt="Hermes widget settings showing Local mode, localhost bridge status, and visibility controls" width="500">
@@ -117,7 +124,7 @@ mode is enabled.
 
 ```bash
 omarchy plugin add https://github.com/r3pc0n/hermes-agent-widget.git --enable --yes
-omarchy-restart-shell
+omarchy restart shell
 ```
 
 With `--yes`, the install command uses the widget's default bar section:
@@ -126,26 +133,31 @@ commands:
 
 ```bash
 # Left side
-omarchy plugin enable echo.model --section left
+omarchy plugin enable io.github.r3pc0n.hermes-agent-widget --section left
 
 # Middle of the bar
-omarchy plugin enable echo.model --section center
+omarchy plugin enable io.github.r3pc0n.hermes-agent-widget --section center
 
 # Right side
-omarchy plugin enable echo.model --section right
+omarchy plugin enable io.github.r3pc0n.hermes-agent-widget --section right
 ```
+
+> **Upgrading from a pre-marketplace installation:** The old plugin ID cannot
+> be updated in place after the rename. Remove it once with
+> `omarchy plugin remove echo.model --yes`, then run the Quick install command
+> above. Your Hermes configuration and conversations are not removed.
 
 ### Manual install
 
 ```bash
 git clone https://github.com/r3pc0n/hermes-agent-widget.git
-mkdir -p ~/.config/omarchy/plugins/echo.model
+mkdir -p ~/.config/omarchy/plugins/io.github.r3pc0n.hermes-agent-widget
 cp hermes-agent-widget/Widget.qml \
    hermes-agent-widget/bridge.py \
    hermes-agent-widget/manifest.json \
-   ~/.config/omarchy/plugins/echo.model/
-cp -r hermes-agent-widget/assets/ ~/.config/omarchy/plugins/echo.model/
-omarchy-restart-shell
+   ~/.config/omarchy/plugins/io.github.r3pc0n.hermes-agent-widget/
+cp -r hermes-agent-widget/assets/ ~/.config/omarchy/plugins/io.github.r3pc0n.hermes-agent-widget/
+omarchy restart shell
 ```
 
 ## Remote mode: bridge setup
@@ -153,12 +165,16 @@ omarchy-restart-shell
 If Hermes runs on another machine, install the bridge there:
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/r3pc0n/hermes-agent-widget/main/install-bridge.sh)
+git clone https://github.com/r3pc0n/hermes-agent-widget.git
+cd hermes-agent-widget
+./install-bridge.sh
 ```
 
-The installer creates a systemd user service on port `8643`. The bridge reads
-`~/.hermes/state.db` and `~/.hermes/config.yaml` directly and has no Python
-dependencies outside the standard library.
+Review `install-bridge.sh` before running it. The installer copies the bridge
+from that checkout, generates a private access token, and creates a systemd
+user service on port `8643`. The bridge reads `~/.hermes/state.db` and
+`~/.hermes/config.yaml` directly and has no Python dependencies outside the
+standard library.
 
 Then configure the widget:
 
@@ -166,19 +182,26 @@ Then configure the widget:
 2. Click the **☰** button to open settings.
 3. Enable **Remote**.
 4. Enter the bridge URL, for example `http://<server-ip>:8643`.
+5. Enter the access token printed by the installer. You can retrieve it later
+   from `~/.config/hermes-agent-widget-bridge/env` on the Remote Agent machine.
 
 ### Install the bridge with Hermes Agent
 
 You can also give your Hermes agent this prompt:
 
 > Install the Hermes Usage Bridge on this machine so an Omarchy bar widget can
-> pull usage data from my agent. Run:
+> pull usage data from my agent. Clone and review the repository, then run its
+> installer:
 >
 > ```bash
-> bash <(curl -s https://raw.githubusercontent.com/r3pc0n/hermes-agent-widget/main/install-bridge.sh)
+> git clone https://github.com/r3pc0n/hermes-agent-widget.git
+> cd hermes-agent-widget
+> ./install-bridge.sh
 > ```
 >
-> Then confirm that the bridge is running on port 8643.
+> Then confirm that the authenticated bridge is running on port 8643 and show
+> me the bridge URL and generated access token. Keep the service limited to my
+> trusted LAN or VPN.
 
 ## Architecture
 
@@ -197,9 +220,10 @@ You can also give your Hermes agent this prompt:
                             └──────────────────────────┘
 ```
 
-In Local mode, the widget's QML `Process` component starts the bridge. In
-Remote mode, the widget communicates over HTTP with a bridge on another
-machine.
+In Local mode, the widget's QML `Process` component starts a loopback-only
+bridge. In Remote mode, the widget communicates over token-authenticated HTTP
+with a bridge on another machine. Remote mode does not provide TLS; use it only
+on a trusted LAN or VPN.
 
 ## Provider and balance support
 
@@ -244,23 +268,46 @@ the full Hermes terminal interface without losing the conversation context.
 
 ![Resuming the current Hermes conversation in the terminal TUI](assets/demo-terminal-resume.gif)
 
+## Removal
+
+Remove the Omarchy widget with:
+
+```bash
+omarchy plugin remove io.github.r3pc0n.hermes-agent-widget --yes
+```
+
+If you installed the optional Remote bridge, remove it on the Hermes Agent
+machine from a repository checkout:
+
+```bash
+cd hermes-agent-widget
+./uninstall-bridge.sh
+```
+
+The bridge uninstaller stops and removes
+`hermes-agent-widget-bridge.service`, its generated access token, the installed
+bridge copy, and bridge cache/state. It does not remove Hermes Agent, its
+configuration, or its session database.
+
 ## Troubleshooting
 
 ### Chat returns “(chat unavailable – bridge /chat is not implemented)”
 
-The bridge may be an older version. Update it and restart the shell:
+The bridge may be an older version. Update the plugin and restart the shell:
 
 ```bash
-cp ~/hermes-agent-widget/bridge.py ~/.config/omarchy/plugins/echo.model/bridge.py
-pkill -f bridge.py
-omarchy-restart-shell
+omarchy plugin update io.github.r3pc0n.hermes-agent-widget --yes
+omarchy restart shell
 ```
 
-### Chat shows “Hermes is thinking…” and then nothing
+For a separately installed Remote bridge, update its checkout and rerun the
+idempotent installer:
 
-The bridge's CORS preflight handler may be missing. Make sure you are running
-the version from this repository at commit `dd40de1` or later, which includes
-`do_OPTIONS` and the `Access-Control-Allow-Origin` header.
+```bash
+cd hermes-agent-widget
+git pull --ff-only
+./install-bridge.sh
+```
 
 ### “Hermes is thinking…” never resolves
 
@@ -290,8 +337,9 @@ upstream in the Hermes Agent project.
   persistent process would be more efficient, but Hermes' interactive TUI
   renders responses in a curses panel rather than standard output, making PTY
   parsing unreliable.
-- **LAN-only bridge:** Remote mode has no built-in TLS or authentication. Use a
-  VPN or SSH tunnel on untrusted networks.
+- **No built-in TLS:** Remote mode authenticates requests with a generated
+  token but sends them over HTTP. Use it only on a trusted LAN or VPN; use an
+  SSH tunnel or an authenticated TLS reverse proxy on untrusted networks.
 - **Clipboard resume in Remote mode:** The **`>_`** button copies the session ID
   instead of opening a local terminal. SSH into the server and run
   `hermes chat --resume <id>` to continue the session.

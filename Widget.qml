@@ -6,13 +6,13 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// echo.model — Hermes usage, balance, and a model switcher: one bar
+// Hermes Agent Widget — usage, balance, and a model switcher: one bar
 // icon and one panel. Data is fetched directly from the configured Hermes
 // bridge URL via QML HTTP requests.
 Panel {
   id: root
-  moduleName: "echo.model"
-  ipcTarget: "echo.model"
+  moduleName: "io.github.r3pc0n.hermes-agent-widget"
+  ipcTarget: "io.github.r3pc0n.hermes-agent-widget"
   manageIpc: false
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -89,7 +89,7 @@ Panel {
 
   function saveSettings(changes) {
     if (!bar || !bar.shell || typeof bar.shell.updateEntryInline !== "function") {
-      console.warn("echo.model: shell settings API unavailable")
+      console.warn("hermes-agent-widget: shell settings API unavailable")
       return
     }
     var next = ({})
@@ -114,6 +114,10 @@ Panel {
   function bridgeUrl() {
     var val = settingValue("bridgeUrl", "")
     return val === "" ? "http://your-hermes:8643" : String(val)
+  }
+
+  function bridgeToken() {
+    return String(settingValue("bridgeToken", "") || "")
   }
 
   function localMode() { return String(settingValue("connectionMode", "local")) === "local" }
@@ -304,6 +308,8 @@ Panel {
     req.ontimeout = fail
     try {
       req.open(method || "GET", url)
+      var token = root.localMode() ? "" : root.bridgeToken()
+      if (token !== "") req.setRequestHeader("Authorization", "Bearer " + token)
       if (body !== undefined) req.setRequestHeader("Content-Type", "application/json")
       req.send(body === undefined ? null : body)
     } catch (e) { fail() }
@@ -375,7 +381,7 @@ Panel {
       })
     }
 
-    var ech = rec.echo || ({})
+    var agent = rec.agent || rec.echo || ({})
     var listedModels = Array.isArray(modelResponse.models) ? modelResponse.models : []
     return {
       updated: new Date().toISOString(),
@@ -395,16 +401,16 @@ Panel {
         db: bridgeUrl + "/hermes.json",
         config: "model.default via POST /model",
         model: String(modelResponse.current || ""),
-        provider: String(ech.provider || "deepseek"),
+        provider: String(agent.provider || "deepseek"),
         profileCount: 1,
         profiles: [root.localMode() ? "local" : "remote"],
         dashboardPort: Number(rec.dashboardPort || 0)
       },
       usage: {
-        today: { tokens: int0(rec.todayTotalTokens), cost: money(ech.costToday), calls: int0(rec.todayPrompts) },
-        week: { tokens: byDay.reduce(function(s, d) { return s + d.tokens }, 0), cost: money(ech.costWeek), calls: 0 },
-        month30: { tokens: int0(ech.tokens30), cost: money(ech.cost30), calls: 0 },
-        allTime: { tokens: int0(ech.tokensAllTime), cost: money(ech.costAllTime), calls: 0 },
+        today: { tokens: int0(rec.todayTotalTokens), cost: money(agent.costToday), calls: int0(rec.todayPrompts) },
+        week: { tokens: byDay.reduce(function(s, d) { return s + d.tokens }, 0), cost: money(agent.costWeek), calls: 0 },
+        month30: { tokens: int0(agent.tokens30), cost: money(agent.cost30), calls: 0 },
+        allTime: { tokens: int0(agent.tokensAllTime), cost: money(agent.costAllTime), calls: 0 },
         byDay: byDay,
         byModel: byModel,
         recentSessions: []
@@ -442,15 +448,19 @@ Panel {
 
   function applyModel(id) {
     if (id === "" || id === root.applyingModel) return
-    // The switch is POSTed to the usage bridge /model endpoint by the
-    // local `echo-model` script (which carries the switch token). Only accept
-    // well-formed model ids — this rejects newlines and anything outside a
-    // safe charset that a compromised model listing could inject.
+    // Switch through the same authenticated bridge used for usage and chat.
+    // Only accept well-formed model ids so a compromised model listing cannot
+    // inject control characters or an unexpected path-like value.
     id = String(id)
     if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$/.test(id)) return
     root.applyingModel = id
-    applyProcess.command = ["bash", "-c", "exec ~/.local/bin/echo-model " + id]
-    applyProcess.running = true
+    var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
+    root.fetchJson(url + "/model", function(resp) {
+      root.applyingModel = ""
+      root.fetchFromBridge()
+    }, function() {
+      root.applyingModel = ""
+    }, "POST", JSON.stringify({ model: id }))
   }
 
   function selectCursor(index) {
@@ -525,18 +535,6 @@ Panel {
   function toggleGroup(provider) {
     root.expandedProvider = (root.expandedProvider === provider) ? "" : provider
     root.cursorActive = true
-  }
-
-  Process {
-    id: applyProcess
-    running: false
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        root.applyingModel = ""
-        root.fetchFromBridge()
-      }
-    }
   }
 
   // Auto-start the local usage bridge so the widget works immediately
@@ -1352,7 +1350,7 @@ Panel {
     open: root.settingsVisible
     focusTarget: bridgeUrlInput
     contentWidth: settingsPanel.fittedContentWidth(Style.space(392))
-    contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(500))
+    contentHeight: settingsPanel.fittedContentHeight(settingsPopupColumn.implicitHeight, Style.space(560))
 
     // No Flickable — settings content fits. Flickable intercepts press events
     // which prevents TextInput from receiving clicks for cursor positioning.
@@ -1430,6 +1428,47 @@ Panel {
                 var url = current === "http://your-hermes:8643" ? fallback : current
                 root.saveSettings({ connectionMode: "remote", bridgeUrl: url })
               }
+            }
+          }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(8)
+          leftPadding: Style.space(8)
+          visible: !root.localMode()
+
+          Text {
+            text: "Access token"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            verticalAlignment: Text.AlignVCenter
+          }
+
+          Rectangle {
+            width: parent.width - Style.space(92)
+            height: Style.space(28)
+            color: root.alpha(root.foreground, 0.08)
+            border.width: 1
+            border.color: root.alpha(root.foreground, 0.30)
+            radius: Style.cornerRadius
+
+            TextInput {
+              id: bridgeTokenInput
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(8)
+              text: root.bridgeToken()
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              echoMode: TextInput.Password
+              selectByMouse: true
+              activeFocusOnPress: true
+              activeFocusOnTab: true
+              onEditingFinished: root.saveSetting("bridgeToken", text)
+              TapHandler { onTapped: parent.forceActiveFocus() }
             }
           }
         }
@@ -1543,7 +1582,7 @@ Panel {
         Text {
           anchors.left: parent.left
           anchors.leftMargin: Style.space(8)
-          text: "hermes-agent-widget v0.2"
+          text: "hermes-agent-widget v1.1.0"
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
