@@ -79,6 +79,7 @@ def ensure_local_token():
     try:
         with open(token_path, "w") as fh:
             fh.write(new_token + "\n")
+        os.chmod(token_path, 0o600)
     except OSError:
         pass  # non-fatal — the bridge still works, just without auth
     return new_token
@@ -858,12 +859,7 @@ class Handler(BaseHTTPRequestHandler):
     def _authed(self):
         """All requests must carry the effective token.
 
-        The one exception is ``GET /token`` which is how the widget
-        bootstraps its local-mode authentication.
         """
-        path = self.path.split("?")[0]
-        if self.command == "GET" and path == "/token":
-            return True  # bootstrap endpoint — no token needed
         hdr = self.headers.get("Authorization", "")
         alt = self.headers.get("X-Hermes-Widget-Token", "")
         legacy_alt = self.headers.get("X-Echo-Token", "")
@@ -956,6 +952,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    import sys
+    if "--print-token" in sys.argv:
+        print(_EFFECTIVE_TOKEN)
+        sys.exit(0)
     try:
         validate_bind_security(HOST, TOKEN)
     except ValueError as exc:

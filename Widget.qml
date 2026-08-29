@@ -296,15 +296,12 @@ Panel {
   }
 
   function fetchLocalToken() {
-    // In local mode the bridge auto-generates an auth token.  Fetch it on
-    // startup so all subsequent requests are authenticated.
+    // Read the local auth token from the bridge's state file directly.
+    // The bridge wrote it to ~/.local/state/hermes-agent-widget/local_token
+    // with 0600 permissions.  Reading the file avoids serving the token
+    // over the same socket that it protects.
     if (!root.localMode() || root.bridgeToken()) return
-    root.fetchJson("http://localhost:8643/token", function(resp) {
-      if (resp && resp.token) {
-        root.saveSetting("localToken", resp.token)
-      }
-    }, function() {
-    }, "GET")
+    tokenReader.running = true
   }
 
   function fetchJson(url, onSuccess, onError, method, body) {
@@ -571,6 +568,20 @@ Panel {
     running: true
   }
 
+  // Token file reader — reads the auto-generated local token from
+  // the bridge's state file.  Only used in Local mode.
+  Process {
+    id: tokenReader
+    command: ["python3", root.bridgeScript, "--print-token"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var token = String(data).trim()
+        if (token !== "") root.saveSetting("localToken", token)
+      }
+    }
+  }
+
   Timer {
     id: refreshTimer
     interval: Math.max(30, Number(root.setting("refreshIntervalSec", 300))) * 1000
@@ -580,18 +591,15 @@ Panel {
   }
 
   // Retry until the bridge is ready — keeps trying every 3s until we have
-  // both usage data and (in local mode) an auth token.  No hard retry cap:
-  // the timer stops itself once everything is obtained.
+  // usage data.
   Timer {
     id: startupRetry
     interval: 3000
     repeat: true
     onTriggered: {
       var haveData = root.stats && root.api && root.api.ok
-      var haveToken = !root.localMode() || root.bridgeToken()
-      if (!haveToken) root.fetchLocalToken()
       if (!haveData) root.fetchFromBridge()
-      if (haveData && haveToken) running = false
+      if (haveData) running = false
     }
   }
 
@@ -619,6 +627,7 @@ Panel {
     if (root.opened) {
       root.loadSettings()
       root.fetchFromBridge()
+      if (root.localMode() && !root.bridgeToken()) root.fetchLocalToken()
     }
   }
   onSettingsVisibleChanged: {
