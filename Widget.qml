@@ -577,19 +577,14 @@ Panel {
     onTriggered: root.fetchFromBridge()
   }
 
-  // Retry until the bridge is ready — keeps trying every 2s until we have
-  // both usage data and (in local mode) an auth token, up to 15 retries.
+  // Retry until the bridge is ready — keeps trying every 3s until we have
+  // both usage data and (in local mode) an auth token.  No hard retry cap:
+  // the timer stops itself once everything is obtained.
   Timer {
     id: startupRetry
-    interval: 2000
+    interval: 3000
     repeat: true
-    property int tries: 0
     onTriggered: {
-      tries += 1
-      if (tries > 15) {
-        running = false
-        return
-      }
       var haveData = root.stats && root.api && root.api.ok
       var haveToken = !root.localMode() || root.bridgeToken()
       if (!haveToken) root.fetchLocalToken()
@@ -620,7 +615,6 @@ Panel {
   }
   onOpenedChanged: {
     if (root.opened) {
-      startupRetry.tries = 0
       root.loadSettings()
       root.fetchFromBridge()
     }
@@ -1470,7 +1464,7 @@ Panel {
           width: parent.width
           spacing: Style.space(8)
           leftPadding: Style.space(8)
-          visible: !root.localMode()
+          visible: true
 
           Text {
             text: "Access token"
