@@ -97,6 +97,14 @@ The chat panel stays in sync with Hermes' session system:
 - **Start a new session (`✎`):** Clear the displayed history and begin with a
   fresh session context.
 
+> **Chat timeout:** The widget waits 5 seconds for a response before showing
+> "chat unavailable". Most short queries complete within this window, but
+> longer tasks — multi-step reasoning, tool use, or slow model requests —
+> may time out prematurely even though Hermes is still processing. To increase
+> the timeout, open the installed `Widget.qml`, find `req.timeout = 5000`, and
+> change it to a higher value such as `120000` (2 minutes), then restart
+> Omarchy.
+
 <p align="center">
   <img src="assets/chat-screen.png" alt="Hermes quick-chat overlay with a short example conversation" width="460">
 </p>
@@ -231,7 +239,7 @@ on a trusted LAN or VPN.
 |---|---|---|
 | DeepSeek (direct) | ✅ Hermes database | ✅ API key in `~/.hermes/.env` |
 | OpenRouter | ✅ Hermes database | ✅ API key in `~/.hermes/.env` |
-| OpenAI Codex / OAuth | ✅ Hermes database | ⚠️ Displays “Connected · usage only” |
+| OpenAI Codex / OAuth | ✅ Hermes database | ⚠️ Displays "Connected · usage only" |
 
 For OAuth and subscription providers, token usage and estimated costs still
 work, but the widget cannot retrieve the provider's balance.
@@ -291,7 +299,7 @@ configuration, or its session database.
 
 ## Troubleshooting
 
-### Chat returns “(chat unavailable – bridge /chat is not implemented)”
+### Chat returns "(chat unavailable – bridge /chat is not implemented)"
 
 The bridge may be an older version. Update the plugin and restart the shell:
 
@@ -309,7 +317,7 @@ git pull --ff-only
 ./install-bridge.sh
 ```
 
-### “Hermes is thinking…” never resolves
+### "Hermes is thinking…" never resolves
 
 The Hermes binary path may be incorrect, or the bridge may be unable to start
 it. Check the binary and call the endpoint directly:
