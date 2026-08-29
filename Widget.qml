@@ -117,7 +117,11 @@ Panel {
   }
 
   function bridgeToken() {
-    return String(settingValue("bridgeToken", "") || "")
+    // Local and Remote modes use separate stored tokens so switching
+    // modes doesn't overwrite the other.
+    if (root.localMode())
+      return String(settingValue("localToken", "") || "")
+    return String(settingValue("remoteToken", "") || "")
   }
 
   function localMode() { return String(settingValue("connectionMode", "local")) === "local" }
@@ -292,16 +296,13 @@ Panel {
 
   function fetchLocalToken() {
     // In local mode the bridge auto-generates an auth token.  Fetch it on
-    // startup so all subsequent requests are authenticated.  The retry
-    // logic is handled by the existing startupRetry timer.
+    // startup so all subsequent requests are authenticated.
     if (!root.localMode() || root.bridgeToken()) return
-    var url = "http://localhost:8643"
-    root.fetchJson(url + "/token", function(resp) {
+    root.fetchJson("http://localhost:8643/token", function(resp) {
       if (resp && resp.token) {
-        root.saveSetting("bridgeToken", resp.token)
+        root.saveSetting("localToken", resp.token)
       }
     }, function() {
-      // will be retried by startupRetry
     }, "GET")
   }
 
@@ -1464,7 +1465,7 @@ Panel {
           width: parent.width
           spacing: Style.space(8)
           leftPadding: Style.space(8)
-          visible: true
+          visible: !root.localMode()
 
           Text {
             text: "Access token"
@@ -1487,7 +1488,7 @@ Panel {
               anchors.fill: parent
               anchors.leftMargin: Style.space(8)
               anchors.rightMargin: Style.space(8)
-              text: root.bridgeToken()
+              text: String(root.settingValue("remoteToken", "") || "")
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -1495,7 +1496,7 @@ Panel {
               selectByMouse: true
               activeFocusOnPress: true
               activeFocusOnTab: true
-              onEditingFinished: root.saveSetting("bridgeToken", text)
+              onEditingFinished: root.saveSetting("remoteToken", text)
               TapHandler { onTapped: parent.forceActiveFocus() }
             }
           }
