@@ -285,6 +285,26 @@ Panel {
     return m ? m[1] + ":" + m[2] : ""
   }
 
+  function safeSessionId(val) {
+    // Only alphanumeric + underscore — rejects any shell metacharacters
+    return String(val || "").replace(/[^a-zA-Z0-9_]/g, "")
+  }
+
+  function fetchLocalToken() {
+    // In local mode the bridge auto-generates an auth token.  Fetch it on
+    // startup so all subsequent requests are authenticated.  The retry
+    // logic is handled by the existing startupRetry timer.
+    if (!root.localMode() || root.bridgeToken()) return
+    var url = "http://localhost:8643"
+    root.fetchJson(url + "/token", function(resp) {
+      if (resp && resp.token) {
+        root.saveSetting("bridgeToken", resp.token)
+      }
+    }, function() {
+      // will be retried by startupRetry
+    }, "GET")
+  }
+
   function fetchJson(url, onSuccess, onError, method, body) {
     var req = new XMLHttpRequest()
     var finished = false
@@ -308,7 +328,7 @@ Panel {
     req.ontimeout = fail
     try {
       req.open(method || "GET", url)
-      var token = root.localMode() ? "" : root.bridgeToken()
+      var token = root.bridgeToken()
       if (token !== "") req.setRequestHeader("Authorization", "Bearer " + token)
       if (body !== undefined) req.setRequestHeader("Content-Type", "application/json")
       req.send(body === undefined ? null : body)
@@ -564,6 +584,7 @@ Panel {
     repeat: false
     onTriggered: {
       if (!root.stats || !root.api || !root.api.ok) root.fetchFromBridge()
+      if (root.localMode() && !root.bridgeToken()) root.fetchLocalToken()
     }
   }
 
@@ -584,6 +605,7 @@ Panel {
 
   Component.onCompleted: {
     root.fetchFromBridge()
+    if (root.localMode()) root.fetchLocalToken()
     startupRetry.start()
   }
   onOpenedChanged: {
@@ -1185,8 +1207,9 @@ Panel {
             onTapped: {
               var url = root.localMode() ? "http://localhost:8643" : root.bridgeUrl()
               root.fetchJson(url + "/session", function(resp) {
-                var sid = resp.session_id
-                if (!sid) return
+                var raw = resp.session_id || ""
+                var sid = root.safeSessionId(raw)
+                if (!sid || sid !== raw) return  // reject malformed session ids
                 if (root.localMode()) {
                   if (root.bar) root.bar.run("xdg-terminal-exec hermes chat --resume " + sid)
                 } else {

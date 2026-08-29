@@ -21,6 +21,7 @@ State files (balance tracking, OpenRouter pricing cache):
 Auto-started by the Hermes Agent Widget via QML Process.
 """
 
+import hashlib
 import hmac
 import json
 import os
@@ -52,6 +53,41 @@ def validate_bind_security(host, token):
     if host not in {"127.0.0.1", "localhost", "::1"} and not token:
         raise ValueError("Refusing non-loopback bridge bind without HERMES_WIDGET_TOKEN")
 
+
+def ensure_local_token():
+    """Generate or load a persistent local auth token.
+
+    Local mode (no ``HERMES_WIDGET_TOKEN`` env var) gets an auto-generated
+    token written to ``~/.local/state/hermes-agent-widget/local_token`` so the
+    widget can authenticate without user configuration.  Remote mode uses the
+    env-var token and ignores the file.
+    """
+    if TOKEN:
+        return TOKEN  # remote mode — env var is authoritative
+    token_path = os.path.join(STATE_DIR, "local_token")
+    try:
+        with open(token_path) as fh:
+            stored = fh.read().strip()
+        if stored and SAFE_SESSION_ID.match(stored):
+            return stored
+    except OSError:
+        pass
+    # Generate a fresh random hex token
+    raw = os.urandom(24)
+    new_token = hashlib.sha256(raw).hexdigest()
+    os.makedirs(STATE_DIR, exist_ok=True)
+    try:
+        with open(token_path, "w") as fh:
+            fh.write(new_token + "\n")
+    except OSError:
+        pass  # non-fatal — the bridge still works, just without auth
+    return new_token
+
+
+# Resolve the effective token at import time so all handler instances
+# see the same value.
+_EFFECTIVE_TOKEN = ensure_local_token()
+
 # Curated switchable models (same provider/base_url — DeepSeek family).
 # Cross-provider switching (qwen via OpenRouter etc.) is a later extension.
 MODELS = [
@@ -68,6 +104,8 @@ MODELS = [
     {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash (via OpenRouter)", "provider": "openrouter"},
 ]
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$")
+# Session IDs are hex strings from Hermes' -Q flag — only alphanumeric.
+SAFE_SESSION_ID = re.compile(r"^[a-zA-Z0-9_]+$")
 
 # Provider registry: sql scope, balance fetcher, ledger state file, pricing
 # kind, display label, and the base_url the model switcher writes.
@@ -781,7 +819,7 @@ class _ChatClient:
             sid = None
             for line in out.splitlines():
                 match = re.match(r"^session_id:\s*(\S+)", line.strip())
-                if match:
+                if match and SAFE_SESSION_ID.match(match.group(1)):
                     sid = match.group(1)
                     self._session_id = sid
                     break
@@ -818,15 +856,21 @@ _CHAT = _ChatClient()
 
 class Handler(BaseHTTPRequestHandler):
     def _authed(self):
-        if not TOKEN:
-            return True
+        """All requests must carry the effective token.
+
+        The one exception is ``GET /token`` which is how the widget
+        bootstraps its local-mode authentication.
+        """
+        path = self.path.split("?")[0]
+        if self.command == "GET" and path == "/token":
+            return True  # bootstrap endpoint — no token needed
         hdr = self.headers.get("Authorization", "")
         alt = self.headers.get("X-Hermes-Widget-Token", "")
         legacy_alt = self.headers.get("X-Echo-Token", "")
         return (
-            hmac.compare_digest(hdr, f"Bearer {TOKEN}")
-            or hmac.compare_digest(alt, TOKEN)
-            or hmac.compare_digest(legacy_alt, TOKEN)
+            hmac.compare_digest(hdr, f"Bearer {_EFFECTIVE_TOKEN}")
+            or hmac.compare_digest(alt, _EFFECTIVE_TOKEN)
+            or hmac.compare_digest(legacy_alt, _EFFECTIVE_TOKEN)
         )
 
     def _json(self, obj, code=200):
@@ -855,6 +899,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "model": model_id, "provider": provider})
         if path == "/session":
             return self._json({"session_id": _CHAT.session_id or ""})
+        if path == "/token":
+            return self._json({"token": _EFFECTIVE_TOKEN})
         return self._json({
             "service": "hermes-agent-widget-bridge",
             "endpoints": ["/hermes.json", "/models", "/health"],
@@ -863,6 +909,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authed():
             return self._json({"error": "unauthorized"}, 401)
+        # Require application/json content type to prevent CORS simple requests
+        # from web pages reaching the bridge (CSRF mitigation).
+        ct = (self.headers.get("Content-Type", "") or "").split(";")[0].strip()
+        if ct and ct != "application/json":
+            return self._json({"error": "unsupported content type"}, 415)
         path = self.path.split("?")[0]
         try:
             length = int(self.headers.get("Content-Length", 0))
