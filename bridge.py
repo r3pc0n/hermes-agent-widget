@@ -68,7 +68,7 @@ def ensure_local_token():
     try:
         with open(token_path) as fh:
             stored = fh.read().strip()
-        if stored and SAFE_SESSION_ID.match(stored):
+        if stored:
             return stored
     except OSError:
         pass
